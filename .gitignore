@@ -1,2 +1,2 @@
 /docker
-config.go
+/internal/config/config.go

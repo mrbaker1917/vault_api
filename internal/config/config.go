@@ -13,7 +13,7 @@ type Config struct {
 // Load reads config from environment with sensible local defaults.
 func Load() Config {
 	return Config{
-		Port:        envOrDefault("PORT", "8080"),
+		Port:        envOrDefault("PORT", "8081"),
 		DatabaseURL: envOrDefault("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/vault_api?sslmode=disable"),
 		RedisURL:    envOrDefault("REDIS_URL", "redis://localhost:6379"),
 		JWTSecret:   envOrDefault("JWT_SECRET", "change-me"),
