@@ -89,3 +89,9 @@ Why first: Observability, automation, and documentation complete production-grad
 4. Audit logging records sensitive actions.
 5. Basic observability (`/health`, structured logs, `/metrics`) is available.
 6. CI validates linting, tests, and migrations.
+
+
+psql "postgres://vault:vault@localhost:5433/vault_api?sslmode=disable"
+
+goose -dir migrations postgres "postgres://vault:vault@localhost:5433/vault_api?sslmode=disable" up
+goose -dir migrations postgres "postgres://vault:vault@localhost:5433/vault_api?sslmode=disable" down
