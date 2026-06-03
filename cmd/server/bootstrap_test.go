@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,6 +14,14 @@ import (
 	"vault_api/internal/api"
 	"vault_api/internal/config"
 )
+
+type stubDBConnection struct {
+	closed bool
+}
+
+func (s *stubDBConnection) Close() {
+	s.closed = true
+}
 
 func TestBootstrapProjectSkeleton(t *testing.T) {
 	root := repoRoot(t)
@@ -110,6 +120,99 @@ func TestDockerComposeBootstrapsAppPostgresAndRedis(t *testing.T) {
 	assertPattern(t, string(content), `(?m)^\s{2,}(app|api|vault-api):\s*$`, "application service definition")
 	assertPattern(t, string(content), `(?mi)postgres`, "PostgreSQL service or image reference")
 	assertPattern(t, string(content), `(?mi)redis`, "Redis service or image reference")
+}
+
+func TestRunBootstrapsDBAndRouterWithoutLiveDatabase(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	cfg := config.Config{
+		Port:        "8080",
+		DatabaseURL: "postgres://example",
+	}
+
+	stubDB := &stubDBConnection{}
+	connected := false
+	healthHandled := false
+
+	err := run(
+		ctx,
+		cfg,
+		func(_ context.Context, databaseURL string) (dbConnection, error) {
+			if databaseURL != cfg.DatabaseURL {
+				t.Fatalf("expected database URL %q, got %q", cfg.DatabaseURL, databaseURL)
+			}
+			connected = true
+			return stubDB, nil
+		},
+		api.NewRouter,
+		func(server *http.Server) error {
+			req := httptest.NewRequest(http.MethodGet, "/health", nil)
+			rec := httptest.NewRecorder()
+			server.Handler.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("expected health status %d, got %d", http.StatusOK, rec.Code)
+			}
+			if rec.Body.String() != "ok" {
+				t.Fatalf("expected health body %q, got %q", "ok", rec.Body.String())
+			}
+
+			healthHandled = true
+			return nil
+		},
+	)
+
+	if err != nil {
+		t.Fatalf("expected run to succeed, got error: %v", err)
+	}
+	if !connected {
+		t.Fatal("expected database connector to be called")
+	}
+	if !healthHandled {
+		t.Fatal("expected router health endpoint to be exercised")
+	}
+	if !stubDB.closed {
+		t.Fatal("expected database connection to be closed on exit")
+	}
+}
+
+func TestRunReturnsWrappedErrorWhenDBInitializationFails(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.Config{
+		Port:        "8080",
+		DatabaseURL: "postgres://example",
+	}
+
+	expectedErr := errors.New("db unavailable")
+	listenCalled := false
+
+	err := run(
+		context.Background(),
+		cfg,
+		func(_ context.Context, _ string) (dbConnection, error) {
+			return nil, expectedErr
+		},
+		api.NewRouter,
+		func(_ *http.Server) error {
+			listenCalled = true
+			return nil
+		},
+	)
+
+	if err == nil {
+		t.Fatal("expected run to return an error when DB initialization fails")
+	}
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("expected error to wrap %v, got %v", expectedErr, err)
+	}
+	if err.Error() != "failed to initialize postgres: db unavailable" {
+		t.Fatalf("expected wrapped startup error message, got %q", err.Error())
+	}
+	if listenCalled {
+		t.Fatal("expected HTTP listen not to start when DB initialization fails")
+	}
 }
 
 func repoRoot(t *testing.T) string {
