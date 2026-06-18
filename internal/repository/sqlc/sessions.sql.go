@@ -13,8 +13,8 @@ import (
 )
 
 const createSession = `-- name: CreateSession :one
-INSERT INTO sessions (user_id, token_hash, device_name, ip_address, user_agent, created_at, expires_at, revoked_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO sessions (user_id, token_hash, device_name, ip_address, user_agent, created_at, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING id, user_id, token_hash, device_name, ip_address, user_agent, created_at, expires_at, revoked_at
 `
 
@@ -26,7 +26,6 @@ type CreateSessionParams struct {
 	UserAgent  pgtype.Text
 	CreatedAt  pgtype.Timestamp
 	ExpiresAt  pgtype.Timestamp
-	RevokedAt  pgtype.Timestamp
 }
 
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error) {
@@ -38,7 +37,6 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		arg.UserAgent,
 		arg.CreatedAt,
 		arg.ExpiresAt,
-		arg.RevokedAt,
 	)
 	var i Session
 	err := row.Scan(

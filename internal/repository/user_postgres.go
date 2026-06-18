@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/google/uuid"
 	"vault_api/internal/domain"
 	"vault_api/internal/repository/sqlc"
@@ -62,49 +61,6 @@ func (r *userPostgresRepository) GetByEmail(ctx context.Context, email string) (
 		return domain.User{}, fmt.Errorf("get user by email: %w", err)
 	}
 	return toDomainUser(userRow), nil
-}
-
-func pgBoolToPG(v bool) pgtype.Bool {
-	return pgtype.Bool{Bool: v, Valid: true}
-}
-
-func pgBoolFromPG(b pgtype.Bool) bool {
-	if !b.Valid {
-		return false
-	}
-	return b.Bool
-}
-
-func pgTextFromPtr(s *string) pgtype.Text {
-	if s == nil {
-		return pgtype.Text{}
-	}
-	return pgtype.Text{String: *s, Valid: true}
-}
-
-func pgTextToPtr(t pgtype.Text) *string {
-	if !t.Valid {
-		return nil
-	}
-	return &t.String
-}
-
-func pgTimestampToPG(t time.Time) pgtype.Timestamp {
-	return pgtype.Timestamp{Time: t, Valid: true}
-}
-
-func pgTimestampFromPG(t pgtype.Timestamp) time.Time {
-	if !t.Valid {
-		return time.Time{}
-	}
-	return t.Time
-}
-
-func uuidFromPG(u pgtype.UUID) (uuid.UUID, error) {
-	if !u.Valid {
-		return uuid.Nil, fmt.Errorf("null uuid")
-	}
-	return uuid.FromBytes(u.Bytes[:])
 }
 
 func userRowFromCreate(r sqlc.CreateUserRow) (userRow, error) {
