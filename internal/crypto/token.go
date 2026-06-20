@@ -1,6 +1,10 @@
 package crypto
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"net/http"
 	"strings"
@@ -11,16 +15,19 @@ import (
 )
 
 type AccessTokenClaims struct {
-	UserID uuid.UUID
+	UserID    uuid.UUID
 	SessionID uuid.UUID
 }
 
 func MakeAccessToken(userID uuid.UUID, sessionID uuid.UUID, secret string, ttl time.Duration) (string, error) {
+	if ttl <= 0 {
+		return "", errors.New("ttl must be greater than 0")
+	}
 	now := time.Now()
 	newJWT := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
 		Issuer:    "vault_api",
-		Subject: userID.String(),
-		ID: sessionID.String(),
+		Subject:   userID.String(),
+		ID:        sessionID.String(),
 		IssuedAt:  jwt.NewNumericDate(now),
 		ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
 	})
@@ -30,6 +37,20 @@ func MakeAccessToken(userID uuid.UUID, sessionID uuid.UUID, secret string, ttl t
 		return "", err
 	}
 	return ss, nil
+}
+
+func GenerateRefreshToken() (string, error) {
+	b := make([]byte, 32)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func HashToken(token string) (string, error) {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:]), nil
 }
 
 func ValidateAccessToken(tokenString, secret string) (AccessTokenClaims, error) {
@@ -69,7 +90,7 @@ func ValidateAccessToken(tokenString, secret string) (AccessTokenClaims, error) 
 	}
 
 	return AccessTokenClaims{
-		UserID: userID,
+		UserID:    userID,
 		SessionID: sessionID,
 	}, nil
 }
