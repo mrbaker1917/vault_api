@@ -33,7 +33,7 @@ func main() {
 		func(ctx context.Context, databaseURL string) (dbConnection, error) {
 			return repository.NewPostgres(ctx, databaseURL)
 		},
-		api.NewRouter,
+		api.NewRouter, 
 		func(server *http.Server) error {
 			return server.ListenAndServe()
 		},
@@ -44,7 +44,7 @@ func main() {
 
 }
 
-func run(ctx context.Context, cfg config.Config, connectDB connectDBFn, buildRouter func() http.Handler, listen listenFn) error {
+func run(ctx context.Context, cfg config.Config, connectDB connectDBFn, buildRouter func(api.Deps) http.Handler, listen listenFn) error {
 	dbInitCtx, dbInitCancel := context.WithTimeout(ctx, 10*time.Second)
 	defer dbInitCancel()
 
@@ -54,10 +54,24 @@ func run(ctx context.Context, cfg config.Config, connectDB connectDBFn, buildRou
 	}
 	defer postgres.Close()
 
+	pg, ok := postgres.(*repository.Postgres)
+	if !ok {
+		return fmt.Errorf("failed to cast postgres to *repository.Postgres")
+	}
+
+	users := repository.NewUserRepository(pg)
+	sessions := repository.NewSessionRepository(pg)
+
+	deps := api.Deps{
+		Users: users,
+		Sessions: sessions,
+		JWTSecret: cfg.JWTSecret,
+	}
+
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	server := &http.Server{
 		Addr:    addr,
-		Handler: buildRouter(),
+		Handler: buildRouter(deps),
 	}
 
 	serverErrCh := make(chan error, 1)
