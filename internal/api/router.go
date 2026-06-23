@@ -2,7 +2,8 @@ package api
 
 import (
 	"net/http"
-
+	"vault_api/internal/service"
+	"vault_api/internal/api/handlers"
 	"vault_api/internal/repository"
 )
 
@@ -18,5 +19,9 @@ func NewRouter(deps Deps) http.Handler {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
+	auth := service.NewAuthService(deps.Users, deps.Sessions, deps.JWTSecret)
+	h := handlers.NewHandler(auth)
+	mux.HandleFunc("POST /api/v1/auth/signup", h.Signup)
+
 	return mux
 }
