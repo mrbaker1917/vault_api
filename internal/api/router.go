@@ -22,6 +22,7 @@ func NewRouter(deps Deps) http.Handler {
 	auth := service.NewAuthService(deps.Users, deps.Sessions, deps.JWTSecret)
 	h := handlers.NewHandler(auth)
 	mux.HandleFunc("POST /api/v1/auth/signup", h.Signup)
+	mux.HandleFunc("POST /api/v1/auth/login", h.Login)
 
 	return mux
 }

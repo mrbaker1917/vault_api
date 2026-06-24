@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"time"
+	"errors"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/google/uuid"
 	"vault_api/internal/domain"
 	"vault_api/internal/repository/sqlc"
@@ -54,6 +56,9 @@ func (r *userPostgresRepository) Create(ctx context.Context, user domain.User) (
 func (r *userPostgresRepository) GetByEmail(ctx context.Context, email string) (domain.User, error) {
 	row, err := r.q.GetUserByEmail(ctx, email)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.User{}, ErrNotFound
+		}
 		return domain.User{}, fmt.Errorf("get user by email: %w", err)	
 	}
 	userRow, err := userRowFromGetByEmail(row)

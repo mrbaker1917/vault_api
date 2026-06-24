@@ -3,10 +3,14 @@ package service
 import (
 	"context"
 	"fmt"
+	"errors"
+	"time"
 	"vault_api/internal/crypto"
 	"vault_api/internal/domain"
 	"vault_api/internal/repository"
 )
+
+var ErrInvalidCredentials = errors.New("invalid credentials")
 
 type AuthService struct {
 	users     repository.UserRepository
@@ -38,3 +42,49 @@ func (s *AuthService) Signup(ctx context.Context, email, password string) (domai
 	return user, nil
 }
 
+func (s *AuthService) Login(ctx context.Context, email, password string) (accessToken, refreshToken string, err error) {
+    // 1. Look up user
+	user, err := s.users.GetByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return "", "", ErrInvalidCredentials
+		}
+		return "", "", fmt.Errorf("get user by email: %w", err)
+	}
+	
+	ok, err := crypto.CheckPasswordHash(password, user.PasswordHash)
+	if err != nil {
+		return "", "", fmt.Errorf("check password hash: %w", err)
+	}
+	if !ok {
+		return "", "", ErrInvalidCredentials
+	}
+
+    refreshToken, err = crypto.GenerateRefreshToken()
+    if err != nil {
+        return "", "", fmt.Errorf("generate refresh token: %w", err)
+    }
+    tokenHash, err := crypto.HashToken(refreshToken)
+	if err != nil {
+        return "", "", fmt.Errorf("hash token: %w", err)
+    }
+    session, err := s.sessions.Create(ctx, domain.Session{
+        UserID:    user.ID,
+        TokenHash: tokenHash,  // hash only, not raw refresh token
+        ExpiresAt: time.Now().Add(7 * 24 * time.Hour), // example
+        // CreatedAt, DeviceName, etc. as needed
+    })
+    if err != nil {
+        return "", "", fmt.Errorf("create session: %w", err)
+    }
+    accessToken, err = crypto.MakeAccessToken(
+        user.ID,
+        session.ID,
+        s.jwtSecret,
+        15*time.Minute,
+    )
+    if err != nil {
+        return "", "", fmt.Errorf("make access token: %w", err)
+    }
+    return accessToken, refreshToken, nil
+}
