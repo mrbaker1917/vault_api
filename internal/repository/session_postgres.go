@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"time"
+	"errors"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/google/uuid"
 	"vault_api/internal/domain"
 	"vault_api/internal/repository/sqlc"
@@ -67,6 +69,43 @@ func (r *sessionPostgresRepository) GetByTokenHash(ctx context.Context, tokenHas
 		return domain.Session{}, fmt.Errorf("get session by token hash: %w", err)
 	}
 	return toDomainSession(sessionRow), nil
+}
+
+func (r *sessionPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (domain.Session, error) {
+	row, err := r.q.GetSessionByID(ctx, pgUUIDToPG(id))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+				return domain.Session{}, ErrNotFound
+			}
+		return domain.Session{}, fmt.Errorf("get session by id: %w", err)
+	}
+	sessionRow, err := sessionRowFromGetByID(row)
+	if err != nil {
+		return domain.Session{}, fmt.Errorf("get session by id: %w", err)
+	}
+	return toDomainSession(sessionRow), nil
+}
+
+func sessionRowFromGetByID(r sqlc.Session) (sessionRow, error) {
+	id, err := uuidFromPG(r.ID)
+	if err != nil {
+		return sessionRow{}, err
+	}
+	userID, err := uuidFromPG(r.UserID)
+	if err != nil {
+		return sessionRow{}, err
+	}
+	return sessionRow{
+		id: id,
+		userID: userID,
+		tokenHash: r.TokenHash,
+		createdAt: pgTimestampFromPG(r.CreatedAt),
+		expiresAt: pgTimestampFromPG(r.ExpiresAt),
+		revokedAt: pgTimestampToPtr(r.RevokedAt),
+		deviceName: pgTextToString(r.DeviceName),
+		ipAddress: netipAddrToString(r.IpAddress),
+		userAgent: pgTextToString(r.UserAgent),
+	}, nil
 }
 
 func sessionRowFromCreate(r sqlc.Session) (sessionRow, error) {
