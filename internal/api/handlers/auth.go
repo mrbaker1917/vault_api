@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"vault_api/internal/service"
+	"vault_api/internal/api/middleware"
 )
 
 type Handler struct {
@@ -75,4 +76,17 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		"access_token": accessToken,
 		"refresh_token": refreshToken,
 	})
+}
+
+func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
+    userID, ok := middleware.UserIDFromContext(r.Context())
+    if !ok {
+        http.Error(w, "unauthorized", http.StatusUnauthorized)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]string{
+        "id": userID.String(),
+    })
 }

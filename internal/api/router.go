@@ -5,6 +5,7 @@ import (
 	"vault_api/internal/service"
 	"vault_api/internal/api/handlers"
 	"vault_api/internal/repository"
+	"vault_api/internal/api/middleware"
 )
 
 type Deps struct {
@@ -23,6 +24,7 @@ func NewRouter(deps Deps) http.Handler {
 	h := handlers.NewHandler(auth)
 	mux.HandleFunc("POST /api/v1/auth/signup", h.Signup)
 	mux.HandleFunc("POST /api/v1/auth/login", h.Login)
+	mux.Handle("GET /api/v1/me", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.Me)))
 
 	return mux
 }
