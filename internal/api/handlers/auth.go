@@ -6,6 +6,7 @@ import (
 	"errors"
 	"vault_api/internal/service"
 	"vault_api/internal/api/middleware"
+	"strings"
 )
 
 type Handler struct {
@@ -89,4 +90,40 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
     json.NewEncoder(w).Encode(map[string]string{
         "id": userID.String(),
     })
+}
+
+func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+
+	if strings.TrimSpace(req.RefreshToken) == "" {
+		http.Error(w, "refresh token is required", http.StatusBadRequest)
+		return
+	}
+
+	accessToken, err := h.authService.Refresh(r.Context(), req.RefreshToken)
+	if err != nil {
+		if errors.Is(err, service.ErrInvalidCredentials) {
+			http.Error(w, "invalid credentials", http.StatusUnauthorized)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"access_token": accessToken,
+	})
 }

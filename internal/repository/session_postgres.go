@@ -62,6 +62,9 @@ func (r *sessionPostgresRepository) Create(ctx context.Context, session domain.S
 func (r *sessionPostgresRepository) GetByTokenHash(ctx context.Context, tokenHash string) (domain.Session, error) {
 	row, err := r.q.GetSessionByTokenHash(ctx, tokenHash)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.Session{}, ErrNotFound
+		}
 		return domain.Session{}, fmt.Errorf("get session by token hash: %w", err)
 	}
 	sessionRow, err := sessionRowFromGetByTokenHash(row)

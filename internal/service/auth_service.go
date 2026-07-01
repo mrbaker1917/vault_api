@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"errors"
 	"time"
+	"strings"
 	"vault_api/internal/crypto"
 	"vault_api/internal/domain"
 	"vault_api/internal/repository"
 )
 
 var ErrInvalidCredentials = errors.New("invalid credentials")
+
+const accessTokenTTL = 15 * time.Minute
 
 type AuthService struct {
 	users     repository.UserRepository
@@ -81,10 +84,38 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (access
         user.ID,
         session.ID,
         s.jwtSecret,
-        15*time.Minute,
+        accessTokenTTL,
     )
     if err != nil {
         return "", "", fmt.Errorf("make access token: %w", err)
     }
     return accessToken, refreshToken, nil
+}
+
+func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (accessToken string, err error) {
+	if strings.TrimSpace(refreshToken) == "" {
+		return "", ErrInvalidCredentials
+	}
+	tokenHash, err := crypto.HashToken(refreshToken)
+	if err != nil {
+		return "", fmt.Errorf("hash token: %w", err)
+	}
+	session, err := s.sessions.GetByTokenHash(ctx, tokenHash)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return "", ErrInvalidCredentials
+		}
+		return "", fmt.Errorf("get session by token hash: %w", err)
+	}
+
+	accessToken, err = crypto.MakeAccessToken(
+		session.UserID,
+		session.ID,
+		s.jwtSecret,
+		accessTokenTTL,
+	)
+	if err != nil {
+		return "", fmt.Errorf("make access token: %w", err)
+	}
+	return accessToken, nil
 }
