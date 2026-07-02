@@ -168,3 +168,11 @@ func toDomainSession(row sessionRow) domain.Session {
 		UserAgent: row.userAgent,
 	}
 }
+
+func (r *sessionPostgresRepository) Revoke(ctx context.Context, id uuid.UUID) error {
+	err := r.q.RevokeSession(ctx, pgUUIDToPG(id))
+	if err != nil {
+		return fmt.Errorf("revoke session: %w", err)
+	}
+	return nil
+}

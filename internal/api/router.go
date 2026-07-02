@@ -26,6 +26,7 @@ func NewRouter(deps Deps) http.Handler {
 	mux.HandleFunc("POST /api/v1/auth/login", h.Login)
 	mux.Handle("GET /api/v1/me", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.Me)))
 	mux.HandleFunc("POST /api/v1/auth/refresh", h.Refresh)
+	mux.Handle("POST /api/v1/auth/logout", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.Logout)))
 	
 	return mux
 }

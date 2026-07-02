@@ -65,7 +65,7 @@ func TestHealthEndpointReturnsOK(t *testing.T) {
 
 func TestConfigLoadUsesEnvironmentVariables(t *testing.T) {
 	t.Setenv("PORT", "9090")
-	t.Setenv("DATABASE_URL", "postgres://vault:test@db:5432/vault_api?sslmode=disable")
+	t.Setenv("DATABASE_URL", "postgres://vault:test@db:5433/vault_api?sslmode=disable")
 	t.Setenv("REDIS_URL", "redis://cache:6379")
 	t.Setenv("JWT_SECRET", "super-secret")
 
@@ -74,7 +74,7 @@ func TestConfigLoadUsesEnvironmentVariables(t *testing.T) {
 	if cfg.Port != "9090" {
 		t.Fatalf("expected Port to use environment override, got %q", cfg.Port)
 	}
-	if cfg.DatabaseURL != "postgres://vault:test@db:5432/vault_api?sslmode=disable" {
+	if cfg.DatabaseURL != "postgres://vault:test@db:5433/vault_api?sslmode=disable" {
 		t.Fatalf("expected DatabaseURL to use environment override, got %q", cfg.DatabaseURL)
 	}
 	if cfg.RedisURL != "redis://cache:6379" {

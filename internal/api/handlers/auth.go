@@ -127,3 +127,22 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		"access_token": accessToken,
 	})
 }
+
+func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
+	sessionID, ok := middleware.SessionIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	err := h.authService.Logout(r.Context(), sessionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "logged out successfully",
+	})
+}
+	

@@ -103,3 +103,15 @@ func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash string) (
 	)
 	return i, err
 }
+
+const revokeSession = `-- name: RevokeSession :exec
+UPDATE sessions
+SET revoked_at = NOW()
+WHERE id = $1
+  AND revoked_at IS NULL
+`
+
+func (q *Queries) RevokeSession(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, revokeSession, id)
+	return err
+}

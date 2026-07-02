@@ -9,6 +9,7 @@ import (
 	"vault_api/internal/crypto"
 	"vault_api/internal/domain"
 	"vault_api/internal/repository"
+	"github.com/google/uuid"
 )
 
 var ErrInvalidCredentials = errors.New("invalid credentials")
@@ -74,8 +75,9 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (access
     session, err := s.sessions.Create(ctx, domain.Session{
         UserID:    user.ID,
         TokenHash: tokenHash,  // hash only, not raw refresh token
-        ExpiresAt: time.Now().Add(7 * 24 * time.Hour), // example
-        // CreatedAt, DeviceName, etc. as needed
+        ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+		CreatedAt: time.Now(),
+        
     })
     if err != nil {
         return "", "", fmt.Errorf("create session: %w", err)
@@ -119,3 +121,8 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (accessT
 	}
 	return accessToken, nil
 }
+
+func (s *AuthService) Logout(ctx context.Context, sessionID uuid.UUID) error {
+	return s.sessions.Revoke(ctx, sessionID)
+}
+	
