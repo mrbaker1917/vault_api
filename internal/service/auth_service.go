@@ -13,6 +13,7 @@ import (
 )
 
 var ErrInvalidCredentials = errors.New("invalid credentials")
+var ErrEmailAlreadyExists = errors.New("email already exists")
 
 const accessTokenTTL = 15 * time.Minute
 
@@ -38,6 +39,14 @@ func (s *AuthService) Signup(ctx context.Context, email, password string) (domai
 	user := domain.User{
 		Email: email,
 		PasswordHash: hashPassword,
+	}
+
+	_, err = s.users.GetByEmail(ctx, email)
+	if err == nil {
+		return domain.User{}, ErrEmailAlreadyExists
+	}
+	if !errors.Is(err, repository.ErrNotFound) {
+		return domain.User{}, fmt.Errorf("get user by email: %w", err)
 	}
 	user, err = s.users.Create(ctx, user)
 	if err != nil {

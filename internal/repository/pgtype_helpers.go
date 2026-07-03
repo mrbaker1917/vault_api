@@ -94,3 +94,14 @@ func netipAddrToString(a *netip.Addr) string {
 	}
 	return a.String()
 }
+
+func pgInt4ToPG(v int32) pgtype.Int4 {
+	return pgtype.Int4{Int32: v, Valid: true}
+}
+
+func pgInt4FromPG(v pgtype.Int4) int32 {
+	if !v.Valid {
+		return 0
+	}
+	return v.Int32
+}

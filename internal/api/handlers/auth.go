@@ -34,6 +34,10 @@ func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.authService.Signup(r.Context(), req.Email, req.Password)
 	if err != nil {
+		if errors.Is(err, service.ErrEmailAlreadyExists) {
+			http.Error(w, "email already exists", http.StatusConflict)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
