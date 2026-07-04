@@ -53,7 +53,12 @@ func TestHealthEndpointReturnsOK(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
 
-	api.NewRouter().ServeHTTP(rec, req)
+	api.NewRouter(api.Deps{
+		Users: nil,
+		Sessions: nil,
+		VaultItems: nil,
+		JWTSecret: "test-secret",
+	}).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)

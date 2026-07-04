@@ -11,10 +11,11 @@ import (
 
 type Handler struct {
 	authService *service.AuthService
+	vaultService *service.VaultService
 }
 
-func NewHandler(auth *service.AuthService) *Handler {
-	return &Handler{authService: auth}
+func NewHandler(auth *service.AuthService, vault *service.VaultService) *Handler {
+    return &Handler{authService: auth, vaultService: vault}
 }
 
 func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {

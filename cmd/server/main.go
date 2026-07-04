@@ -61,11 +61,13 @@ func run(ctx context.Context, cfg config.Config, connectDB connectDBFn, buildRou
 
 	users := repository.NewUserRepository(pg)
 	sessions := repository.NewSessionRepository(pg)
+	vaultItems := repository.NewVaultItemRepository(pg)
 
 	deps := api.Deps{
 		Users: users,
 		Sessions: sessions,
 		JWTSecret: cfg.JWTSecret,
+		VaultItems: vaultItems,
 	}
 
 	addr := fmt.Sprintf(":%s", cfg.Port)

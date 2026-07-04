@@ -12,6 +12,7 @@ type Deps struct {
 	Users repository.UserRepository
 	Sessions repository.SessionRepository
 	JWTSecret string
+	VaultItems repository.VaultItemRepository
 }
 
 func NewRouter(deps Deps) http.Handler {
@@ -21,12 +22,15 @@ func NewRouter(deps Deps) http.Handler {
 		_, _ = w.Write([]byte("ok"))
 	})
 	auth := service.NewAuthService(deps.Users, deps.Sessions, deps.JWTSecret)
-	h := handlers.NewHandler(auth)
+	vault := service.NewVaultService(deps.VaultItems)
+	h := handlers.NewHandler(auth, vault)
 	mux.HandleFunc("POST /api/v1/auth/signup", h.Signup)
 	mux.HandleFunc("POST /api/v1/auth/login", h.Login)
 	mux.Handle("GET /api/v1/me", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.Me)))
 	mux.HandleFunc("POST /api/v1/auth/refresh", h.Refresh)
 	mux.Handle("POST /api/v1/auth/logout", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.Logout)))
-	
+	mux.Handle("POST /api/v1/vault/items", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.CreateItem)))
+	mux.Handle("GET /api/v1/vault/items", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.ListItems)))
+	mux.Handle("GET /api/v1/vault/items/{id}", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.GetItem)))
 	return mux
 }
