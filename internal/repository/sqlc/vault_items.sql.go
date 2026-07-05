@@ -58,6 +58,39 @@ func (q *Queries) CreateVaultItem(ctx context.Context, arg CreateVaultItemParams
 	return i, err
 }
 
+const deleteVaultItem = `-- name: DeleteVaultItem :one
+UPDATE vault_items  
+SET deleted_at = NOW(), version = version + 1
+WHERE id = $1
+  AND deleted_at IS NULL
+  AND version = $2
+RETURNING id, user_id, encrypted_data, item_type, title, folder, tags, created_at, updated_at, deleted_at, version
+`
+
+type DeleteVaultItemParams struct {
+	ID      pgtype.UUID
+	Version pgtype.Int4
+}
+
+func (q *Queries) DeleteVaultItem(ctx context.Context, arg DeleteVaultItemParams) (VaultItem, error) {
+	row := q.db.QueryRow(ctx, deleteVaultItem, arg.ID, arg.Version)
+	var i VaultItem
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.EncryptedData,
+		&i.ItemType,
+		&i.Title,
+		&i.Folder,
+		&i.Tags,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+	)
+	return i, err
+}
+
 const getVaultItemByID = `-- name: GetVaultItemByID :one
 SELECT id, user_id, encrypted_data, item_type, title, folder, tags, created_at, updated_at, deleted_at, version
 FROM vault_items
@@ -122,4 +155,85 @@ func (q *Queries) ListVaultItemsByUserID(ctx context.Context, userID pgtype.UUID
 		return nil, err
 	}
 	return items, nil
+}
+
+const restoreVaultItem = `-- name: RestoreVaultItem :one
+UPDATE vault_items
+SET deleted_at = NULL, version = version + 1
+WHERE id = $1
+  AND deleted_at IS NOT NULL
+  AND version = $2
+RETURNING id, user_id, encrypted_data, item_type, title, folder, tags, created_at, updated_at, deleted_at, version
+`
+
+type RestoreVaultItemParams struct {
+	ID      pgtype.UUID
+	Version pgtype.Int4
+}
+
+func (q *Queries) RestoreVaultItem(ctx context.Context, arg RestoreVaultItemParams) (VaultItem, error) {
+	row := q.db.QueryRow(ctx, restoreVaultItem, arg.ID, arg.Version)
+	var i VaultItem
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.EncryptedData,
+		&i.ItemType,
+		&i.Title,
+		&i.Folder,
+		&i.Tags,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+	)
+	return i, err
+}
+
+const updateVaultItem = `-- name: UpdateVaultItem :one
+UPDATE vault_items
+SET encrypted_data = $2, item_type = $3, title = $4, folder = $5, tags = $6, updated_at = $7, version = version + 1
+WHERE id = $1
+  AND deleted_at IS NULL
+  AND version = $8
+RETURNING id, user_id, encrypted_data, item_type, title, folder, tags, created_at, updated_at, deleted_at, version
+`
+
+type UpdateVaultItemParams struct {
+	ID            pgtype.UUID
+	EncryptedData []byte
+	ItemType      string
+	Title         pgtype.Text
+	Folder        pgtype.Text
+	Tags          []string
+	UpdatedAt     pgtype.Timestamp
+	Version       pgtype.Int4
+}
+
+func (q *Queries) UpdateVaultItem(ctx context.Context, arg UpdateVaultItemParams) (VaultItem, error) {
+	row := q.db.QueryRow(ctx, updateVaultItem,
+		arg.ID,
+		arg.EncryptedData,
+		arg.ItemType,
+		arg.Title,
+		arg.Folder,
+		arg.Tags,
+		arg.UpdatedAt,
+		arg.Version,
+	)
+	var i VaultItem
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.EncryptedData,
+		&i.ItemType,
+		&i.Title,
+		&i.Folder,
+		&i.Tags,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+	)
+	return i, err
 }

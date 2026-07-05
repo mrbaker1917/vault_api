@@ -15,3 +15,27 @@ FROM vault_items
 WHERE user_id = $1
   AND deleted_at IS NULL
 ORDER BY created_at DESC;
+
+-- name: UpdateVaultItem :one
+UPDATE vault_items
+SET encrypted_data = $2, item_type = $3, title = $4, folder = $5, tags = $6, updated_at = $7, version = version + 1
+WHERE id = $1
+  AND deleted_at IS NULL
+  AND version = $8
+RETURNING id, user_id, encrypted_data, item_type, title, folder, tags, created_at, updated_at, deleted_at, version;
+
+-- name: DeleteVaultItem :one
+UPDATE vault_items  
+SET deleted_at = NOW(), version = version + 1
+WHERE id = $1
+  AND deleted_at IS NULL
+  AND version = $2
+RETURNING id, user_id, encrypted_data, item_type, title, folder, tags, created_at, updated_at, deleted_at, version;
+
+-- name: RestoreVaultItem :one
+UPDATE vault_items
+SET deleted_at = NULL, version = version + 1
+WHERE id = $1
+  AND deleted_at IS NOT NULL
+  AND version = $2
+RETURNING id, user_id, encrypted_data, item_type, title, folder, tags, created_at, updated_at, deleted_at, version;
