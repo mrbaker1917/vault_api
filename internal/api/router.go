@@ -9,10 +9,11 @@ import (
 )
 
 type Deps struct {
-	Users repository.UserRepository
-	Sessions repository.SessionRepository
-	JWTSecret string
-	VaultItems repository.VaultItemRepository
+	Users              repository.UserRepository
+	Sessions           repository.SessionRepository
+	JWTSecret          string
+	VaultItems         repository.VaultItemRepository
+	CORSAllowedOrigins []string
 }
 
 func NewRouter(deps Deps) http.Handler {
@@ -35,6 +36,11 @@ func NewRouter(deps Deps) http.Handler {
 	mux.Handle("PUT /api/v1/vault/items/{id}", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.UpdateItem)))
 	mux.Handle("DELETE /api/v1/vault/items/{id}", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.DeleteItem)))
 	mux.Handle("POST /api/v1/vault/items/{id}/restore", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.RestoreItem)))
-	
-	return mux
+
+	return middleware.Chain(mux,
+		middleware.Recover,
+		middleware.LogRequests,
+		middleware.CORS(deps.CORSAllowedOrigins),
+		middleware.AuthRateLimit,
+	)
 }

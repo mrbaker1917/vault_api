@@ -98,8 +98,8 @@ func TestConfigLoadUsesBootstrapDefaults(t *testing.T) {
 
 	cfg := config.Load()
 
-	if cfg.Port != "8080" {
-		t.Fatalf("expected default Port %q, got %q", "8080", cfg.Port)
+	if cfg.Port != "8081" {
+		t.Fatalf("expected default Port %q, got %q", "8081", cfg.Port)
 	}
 	if cfg.DatabaseURL == "" {
 		t.Fatal("expected default DatabaseURL to be non-empty")
@@ -132,7 +132,7 @@ func TestRunBootstrapsDBAndRouterWithoutLiveDatabase(t *testing.T) {
 
 	ctx := context.Background()
 	cfg := config.Config{
-		Port:        "8080",
+		Port:        "8081",
 		DatabaseURL: "postgres://example",
 	}
 
@@ -149,6 +149,9 @@ func TestRunBootstrapsDBAndRouterWithoutLiveDatabase(t *testing.T) {
 			}
 			connected = true
 			return stubDB, nil
+		},
+		func(_ dbConnection) (api.Deps, error) {
+			return api.Deps{JWTSecret: "test-secret"}, nil
 		},
 		api.NewRouter,
 		func(server *http.Server) error {
@@ -186,7 +189,7 @@ func TestRunReturnsWrappedErrorWhenDBInitializationFails(t *testing.T) {
 	t.Parallel()
 
 	cfg := config.Config{
-		Port:        "8080",
+		Port:        "8081",
 		DatabaseURL: "postgres://example",
 	}
 
@@ -198,6 +201,9 @@ func TestRunReturnsWrappedErrorWhenDBInitializationFails(t *testing.T) {
 		cfg,
 		func(_ context.Context, _ string) (dbConnection, error) {
 			return nil, expectedErr
+		},
+		func(_ dbConnection) (api.Deps, error) {
+			return api.Deps{JWTSecret: "test-secret"}, nil
 		},
 		api.NewRouter,
 		func(_ *http.Server) error {

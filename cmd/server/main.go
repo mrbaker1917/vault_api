@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -20,9 +22,14 @@ type dbConnection interface {
 }
 
 type connectDBFn func(ctx context.Context, databaseURL string) (dbConnection, error)
+type buildDepsFn func(db dbConnection) (api.Deps, error)
 type listenFn func(server *http.Server) error
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})))
+
 	cfg := config.Load()
 	shutdownSignalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -33,7 +40,21 @@ func main() {
 		func(ctx context.Context, databaseURL string) (dbConnection, error) {
 			return repository.NewPostgres(ctx, databaseURL)
 		},
-		api.NewRouter, 
+		func(db dbConnection) (api.Deps, error) {
+			pg, ok := db.(*repository.Postgres)
+			if !ok {
+				return api.Deps{}, fmt.Errorf("failed to cast postgres to *repository.Postgres")
+			}
+
+			return api.Deps{
+				Users:              repository.NewUserRepository(pg),
+				Sessions:           repository.NewSessionRepository(pg),
+				JWTSecret:          cfg.JWTSecret,
+				VaultItems:         repository.NewVaultItemRepository(pg),
+				CORSAllowedOrigins: cfg.CORSAllowedOrigins,
+			}, nil
+		},
+		api.NewRouter,
 		func(server *http.Server) error {
 			return server.ListenAndServe()
 		},
@@ -44,7 +65,7 @@ func main() {
 
 }
 
-func run(ctx context.Context, cfg config.Config, connectDB connectDBFn, buildRouter func(api.Deps) http.Handler, listen listenFn) error {
+func run(ctx context.Context, cfg config.Config, connectDB connectDBFn, buildDeps buildDepsFn, buildRouter func(api.Deps) http.Handler, listen listenFn) error {
 	dbInitCtx, dbInitCancel := context.WithTimeout(ctx, 10*time.Second)
 	defer dbInitCancel()
 
@@ -54,20 +75,9 @@ func run(ctx context.Context, cfg config.Config, connectDB connectDBFn, buildRou
 	}
 	defer postgres.Close()
 
-	pg, ok := postgres.(*repository.Postgres)
-	if !ok {
-		return fmt.Errorf("failed to cast postgres to *repository.Postgres")
-	}
-
-	users := repository.NewUserRepository(pg)
-	sessions := repository.NewSessionRepository(pg)
-	vaultItems := repository.NewVaultItemRepository(pg)
-
-	deps := api.Deps{
-		Users: users,
-		Sessions: sessions,
-		JWTSecret: cfg.JWTSecret,
-		VaultItems: vaultItems,
+	deps, err := buildDeps(postgres)
+	if err != nil {
+		return fmt.Errorf("failed to build dependencies: %w", err)
 	}
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
