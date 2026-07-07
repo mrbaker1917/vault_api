@@ -128,3 +128,64 @@ func toDomainVaultItem(row vaultItemRow) domain.VaultItem {
 		Version:       row.version,
 	}
 }
+
+func (r *vaultItemPostgresRepository) Update(ctx context.Context, item domain.VaultItem) (domain.VaultItem, error) {
+	row, err := r.q.UpdateVaultItem(ctx, sqlc.UpdateVaultItemParams{
+		ID:            pgUUIDToPG(item.ID),
+		EncryptedData: item.EncryptedData,
+		ItemType:      item.ItemType,
+		Title:         pgTextFromString(item.Title),
+		Folder:        pgTextFromString(item.Folder),
+		Tags:          item.Tags,
+		UpdatedAt:     pgTimestampToPG(item.UpdatedAt),
+		Version:       pgInt4ToPG(item.Version),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.VaultItem{}, ErrNotFound
+		}
+		return domain.VaultItem{}, fmt.Errorf("update vault item: %w", err)
+	}
+	vaultItemRow, err := vaultItemRowFromSQLC(row)
+	if err != nil {
+		return domain.VaultItem{}, fmt.Errorf("update vault item: %w", err)
+	}
+	return toDomainVaultItem(vaultItemRow), nil
+}
+
+func (r *vaultItemPostgresRepository) Delete(ctx context.Context, id uuid.UUID, version int32) (domain.VaultItem, error) {
+	row, err := r.q.DeleteVaultItem(ctx, sqlc.DeleteVaultItemParams{
+		ID:      pgUUIDToPG(id),
+		Version: pgInt4ToPG(version),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.VaultItem{}, ErrNotFound
+		}
+		return domain.VaultItem{}, fmt.Errorf("delete vault item: %w", err)
+	}
+	vaultItemRow, err := vaultItemRowFromSQLC(row)
+	if err != nil {
+		return domain.VaultItem{}, fmt.Errorf("delete vault item: %w", err)
+	}
+	return toDomainVaultItem(vaultItemRow), nil
+}
+
+func (r *vaultItemPostgresRepository) Restore(ctx context.Context, id uuid.UUID, version int32, userID uuid.UUID) (domain.VaultItem, error) {
+	row, err := r.q.RestoreVaultItem(ctx, sqlc.RestoreVaultItemParams{
+		ID:      pgUUIDToPG(id),
+		Version: pgInt4ToPG(version),
+		UserID:  pgUUIDToPG(userID),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.VaultItem{}, ErrNotFound
+		}
+		return domain.VaultItem{}, fmt.Errorf("restore vault item: %w", err)
+	}
+	vaultItemRow, err := vaultItemRowFromSQLC(row)
+	if err != nil {
+		return domain.VaultItem{}, fmt.Errorf("restore vault item: %w", err)
+	}
+	return toDomainVaultItem(vaultItemRow), nil
+}

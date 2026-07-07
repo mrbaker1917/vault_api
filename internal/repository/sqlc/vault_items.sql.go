@@ -163,16 +163,18 @@ SET deleted_at = NULL, version = version + 1
 WHERE id = $1
   AND deleted_at IS NOT NULL
   AND version = $2
+  AND user_id = $3
 RETURNING id, user_id, encrypted_data, item_type, title, folder, tags, created_at, updated_at, deleted_at, version
 `
 
 type RestoreVaultItemParams struct {
 	ID      pgtype.UUID
 	Version pgtype.Int4
+	UserID  pgtype.UUID
 }
 
 func (q *Queries) RestoreVaultItem(ctx context.Context, arg RestoreVaultItemParams) (VaultItem, error) {
-	row := q.db.QueryRow(ctx, restoreVaultItem, arg.ID, arg.Version)
+	row := q.db.QueryRow(ctx, restoreVaultItem, arg.ID, arg.Version, arg.UserID)
 	var i VaultItem
 	err := row.Scan(
 		&i.ID,

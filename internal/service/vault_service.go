@@ -67,3 +67,63 @@ func (s *VaultService) ListItems(ctx context.Context, userID uuid.UUID) ([]domai
 	}
 	return items, nil
 }
+
+type UpdateVaultItemInput struct {
+	EncryptedData []byte
+	ItemType      string
+	Title         string
+	Folder        string
+	Tags          []string
+	Version       int32
+}
+
+func (s *VaultService) UpdateItem(ctx context.Context, userID, itemID uuid.UUID, input UpdateVaultItemInput) (domain.VaultItem, error) {
+	if _, err := s.GetItem(ctx, userID, itemID); err != nil {
+		return domain.VaultItem{}, err
+	}
+	item, err := s.vaultItems.Update(ctx, domain.VaultItem{
+		ID:            itemID,
+		EncryptedData: input.EncryptedData,
+		ItemType:      input.ItemType,
+		Title:         input.Title,
+		Folder:        input.Folder,
+		Tags:          input.Tags,
+		UpdatedAt:     time.Now(),
+		Version:       input.Version,
+	})
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return domain.VaultItem{}, ErrNotFound
+		}
+		return domain.VaultItem{}, fmt.Errorf("update vault item: %w", err)
+	}
+
+	return item, nil
+}
+
+func (s *VaultService) DeleteItem(ctx context.Context, userID, itemID uuid.UUID, version int32) (domain.VaultItem, error) {
+	if _, err := s.GetItem(ctx, userID, itemID); err != nil {
+		return domain.VaultItem{}, err
+	}
+	item, err := s.vaultItems.Delete(ctx, itemID, version)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return domain.VaultItem{}, ErrNotFound
+		}
+		return domain.VaultItem{}, fmt.Errorf("delete vault item: %w", err)
+	}
+
+	return item, nil
+}
+
+func (s *VaultService) RestoreItem(ctx context.Context, userID, itemID uuid.UUID, version int32) (domain.VaultItem, error) {
+	item, err := s.vaultItems.Restore(ctx, itemID, version, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return domain.VaultItem{}, ErrNotFound
+		}
+		return domain.VaultItem{}, fmt.Errorf("restore vault item: %w", err)
+	}
+
+	return item, nil
+}

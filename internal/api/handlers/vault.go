@@ -106,3 +106,123 @@ func (h *Handler) GetItem(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(item)
 }
+
+func (h *Handler) UpdateItem(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	itemID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "invalid item id", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		EncryptedData []byte   `json:"encrypted_data"` // base64 in JSON, or string
+		ItemType      string   `json:"item_type"`
+		Title         string   `json:"title"`
+		Folder        string   `json:"folder"`
+		Tags          []string `json:"tags"`
+		Version       int32    `json:"version"`
+	}
+	
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+
+	input := service.UpdateVaultItemInput{
+		EncryptedData: req.EncryptedData,
+		ItemType:      req.ItemType,
+		Title:         req.Title,
+		Folder:        req.Folder,
+		Tags:          req.Tags,
+		Version:       req.Version,
+	}
+
+	item, err := h.vaultService.UpdateItem(r.Context(), userID, itemID, input)
+	if err != nil {
+		if errors.Is(err, service.ErrNotFound) {
+			http.Error(w, "item not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to update item", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(item)
+}
+
+func (h *Handler) DeleteItem(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	itemID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "invalid item id", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Version int32 `json:"version"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	version := req.Version
+	item, err := h.vaultService.DeleteItem(r.Context(), userID, itemID, version)
+	if err != nil {
+		if errors.Is(err, service.ErrNotFound) {
+			http.Error(w, "item not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to delete item", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(item)
+}
+
+func (h *Handler) RestoreItem(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	itemID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "invalid item id", http.StatusBadRequest)
+		return
+	}
+	var req struct {
+		Version int32 `json:"version"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	version := req.Version
+
+	item, err := h.vaultService.RestoreItem(r.Context(), userID, itemID, version)
+	if err != nil {
+		if errors.Is(err, service.ErrNotFound) {
+			http.Error(w, "item not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to restore item", http.StatusInternalServerError)
+			return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(item)
+}
