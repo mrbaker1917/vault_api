@@ -6,6 +6,7 @@ import (
 	"errors"
 	"vault_api/internal/service"
 	"vault_api/internal/api/middleware"
+	"vault_api/internal/requestmeta"
 	"strings"
 )
 
@@ -60,13 +61,19 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
+		DeviceName string `json:"device_name"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
 	
-	accessToken, refreshToken, err := h.authService.Login(r.Context(), req.Email, req.Password)
+	accessToken, refreshToken, err := h.authService.Login(r.Context(), req.Email, req.Password, service.LoginDeviceInfo{
+		DeviceName: req.DeviceName,
+		IPAddress: requestmeta.ClientIP(r),
+		UserAgent: r.Header.Get("User-Agent"),
+	})
+
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) {
 			http.Error(w, "invalid credentials", http.StatusUnauthorized)  // 401

@@ -55,7 +55,14 @@ func (s *AuthService) Signup(ctx context.Context, email, password string) (domai
 	return user, nil
 }
 
-func (s *AuthService) Login(ctx context.Context, email, password string) (accessToken, refreshToken string, err error) {
+
+type LoginDeviceInfo struct {
+    DeviceName string
+    IPAddress  string
+    UserAgent  string
+}
+
+func (s *AuthService) Login(ctx context.Context, email, password string, device LoginDeviceInfo) (accessToken, refreshToken string, err error) {
     // 1. Look up user
 	user, err := s.users.GetByEmail(ctx, email)
 	if err != nil {
@@ -81,13 +88,16 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (access
 	if err != nil {
         return "", "", fmt.Errorf("hash token: %w", err)
     }
-    session, err := s.sessions.Create(ctx, domain.Session{
-        UserID:    user.ID,
-        TokenHash: tokenHash,  // hash only, not raw refresh token
-        ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
-		CreatedAt: time.Now(),
-        
-    })
+	session, err := s.sessions.Create(ctx, domain.Session{
+		UserID:     user.ID,
+		TokenHash:  tokenHash,
+		DeviceName: device.DeviceName,
+		IPAddress:  device.IPAddress,
+		UserAgent:  device.UserAgent,
+		CreatedAt:  time.Now(),
+		ExpiresAt:  time.Now().Add(7 * 24 * time.Hour),
+	})
+	
     if err != nil {
         return "", "", fmt.Errorf("create session: %w", err)
     }
