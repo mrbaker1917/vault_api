@@ -170,9 +170,62 @@ func toDomainSession(row sessionRow) domain.Session {
 }
 
 func (r *sessionPostgresRepository) Revoke(ctx context.Context, id uuid.UUID) error {
-	err := r.q.RevokeSession(ctx, pgUUIDToPG(id))
+	session, err := r.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	return r.RevokeByID(ctx, id, session.UserID)
+}
+
+func (r *sessionPostgresRepository) RevokeByID(ctx context.Context, id, userID uuid.UUID) error {
+	rowsAffected, err := r.q.RevokeSession(ctx, sqlc.RevokeSessionParams{
+		ID:     pgUUIDToPG(id),
+		UserID: pgUUIDToPG(userID),
+	})
 	if err != nil {
 		return fmt.Errorf("revoke session: %w", err)
 	}
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
 	return nil
+}
+
+func (r *sessionPostgresRepository) ListByUserID(ctx context.Context, userID uuid.UUID) ([]domain.Session, error) {
+	rows, err := r.q.ListSessionsByUserID(ctx, pgUUIDToPG(userID))
+	if err != nil {
+		return nil, fmt.Errorf("list sessions by user id: %w", err)
+	}
+	
+	sessions := make([]domain.Session, 0, len(rows))
+	for _, row := range rows {
+		sessionRow, err := sessionRowFromListByUserID(row)
+		if err != nil {
+			return nil, fmt.Errorf("list sessions by user id: %w", err)
+		}
+		sessions = append(sessions, toDomainSession(sessionRow))
+	}
+	return sessions, nil
+}
+
+func sessionRowFromListByUserID(r sqlc.ListSessionsByUserIDRow) (sessionRow, error) {
+	id, err := uuidFromPG(r.ID)
+	if err != nil {
+		return sessionRow{}, err
+	}
+	userID, err := uuidFromPG(r.UserID)
+	if err != nil {
+		return sessionRow{}, err
+	}
+	return sessionRow{
+		id:         id,
+		userID:     userID,
+		tokenHash:  "", // intentionally omitted from list query
+		createdAt:  pgTimestampFromPG(r.CreatedAt),
+		expiresAt:  pgTimestampFromPG(r.ExpiresAt),
+		revokedAt:  pgTimestampToPtr(r.RevokedAt),
+		deviceName: pgTextToString(r.DeviceName),
+		ipAddress:  netipAddrToString(r.IpAddress),
+		userAgent:  pgTextToString(r.UserAgent),
+	}, nil
 }

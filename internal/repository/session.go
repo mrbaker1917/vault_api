@@ -12,4 +12,6 @@ type SessionRepository interface {
 	GetByTokenHash(ctx context.Context, tokenHash string) (domain.Session, error)
 	GetByID(ctx context.Context, id uuid.UUID) (domain.Session, error)
 	Revoke(ctx context.Context, id uuid.UUID) error
+	ListByUserID(ctx context.Context, userID uuid.UUID) ([]domain.Session, error)
+	RevokeByID(ctx context.Context, id, userID uuid.UUID) error
 }

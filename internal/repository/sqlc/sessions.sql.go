@@ -104,14 +104,72 @@ func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash string) (
 	return i, err
 }
 
-const revokeSession = `-- name: RevokeSession :exec
+const listSessionsByUserID = `-- name: ListSessionsByUserID :many
+SELECT id, user_id, device_name, ip_address, user_agent, created_at, expires_at, revoked_at
+FROM sessions
+WHERE user_id = $1
+  AND revoked_at IS NULL
+  AND expires_at > NOW()
+ORDER BY created_at DESC
+`
+
+type ListSessionsByUserIDRow struct {
+	ID         pgtype.UUID
+	UserID     pgtype.UUID
+	DeviceName pgtype.Text
+	IpAddress  *netip.Addr
+	UserAgent  pgtype.Text
+	CreatedAt  pgtype.Timestamp
+	ExpiresAt  pgtype.Timestamp
+	RevokedAt  pgtype.Timestamp
+}
+
+func (q *Queries) ListSessionsByUserID(ctx context.Context, userID pgtype.UUID) ([]ListSessionsByUserIDRow, error) {
+	rows, err := q.db.Query(ctx, listSessionsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSessionsByUserIDRow
+	for rows.Next() {
+		var i ListSessionsByUserIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.DeviceName,
+			&i.IpAddress,
+			&i.UserAgent,
+			&i.CreatedAt,
+			&i.ExpiresAt,
+			&i.RevokedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const revokeSession = `-- name: RevokeSession :execrows
 UPDATE sessions
 SET revoked_at = NOW()
 WHERE id = $1
   AND revoked_at IS NULL
+  AND user_id = $2
 `
 
-func (q *Queries) RevokeSession(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, revokeSession, id)
-	return err
+type RevokeSessionParams struct {
+	ID     pgtype.UUID
+	UserID pgtype.UUID
+}
+
+func (q *Queries) RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeSession, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

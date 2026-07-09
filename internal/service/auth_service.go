@@ -97,7 +97,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string, device 
 		CreatedAt:  time.Now(),
 		ExpiresAt:  time.Now().Add(7 * 24 * time.Hour),
 	})
-	
+
     if err != nil {
         return "", "", fmt.Errorf("create session: %w", err)
     }
@@ -144,4 +144,18 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (accessT
 func (s *AuthService) Logout(ctx context.Context, sessionID uuid.UUID) error {
 	return s.sessions.Revoke(ctx, sessionID)
 }
-	
+
+func (s *AuthService) ListSessions(ctx context.Context, userID uuid.UUID) ([]domain.Session, error) {
+	return s.sessions.ListByUserID(ctx, userID)
+}
+
+func (s *AuthService) RevokeSession(ctx context.Context, sessionID, userID uuid.UUID) error {
+	err := s.sessions.RevokeByID(ctx, sessionID, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("revoke session: %w", err)
+	}
+	return nil
+}

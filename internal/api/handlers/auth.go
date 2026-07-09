@@ -4,10 +4,13 @@ import (
 	"net/http"
 	"encoding/json"
 	"errors"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
 	"vault_api/internal/service"
 	"vault_api/internal/api/middleware"
 	"vault_api/internal/requestmeta"
-	"strings"
 )
 
 type Handler struct {
@@ -158,3 +161,73 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	})
 }
 	
+func (h *Handler) ListSessions(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	currentSessionID, ok := middleware.SessionIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	sessions, err := h.authService.ListSessions(r.Context(), userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	type sessionResponse struct {
+		ID         string `json:"id"`
+		DeviceName string `json:"device_name"`
+		IPAddress  string `json:"ip_address"`
+		UserAgent  string `json:"user_agent"`
+		CreatedAt  string `json:"created_at"`
+		ExpiresAt  string `json:"expires_at"`
+		IsCurrent  bool   `json:"is_current"`
+	}
+
+	response := make([]sessionResponse, 0, len(sessions))
+	for _, session := range sessions {
+		response = append(response, sessionResponse{
+			ID:         session.ID.String(),
+			DeviceName: session.DeviceName,
+			IPAddress:  session.IPAddress,
+			UserAgent:  session.UserAgent,
+			CreatedAt:  session.CreatedAt.Format(time.RFC3339),
+			ExpiresAt:  session.ExpiresAt.Format(time.RFC3339),
+			IsCurrent:  session.ID == currentSessionID,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}
+
+func (h *Handler) RevokeSession(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	sessionID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "invalid session id", http.StatusBadRequest)
+		return
+	}
+
+	err = h.authService.RevokeSession(r.Context(), sessionID, userID)
+	if err != nil {
+		if errors.Is(err, service.ErrNotFound) {
+			http.Error(w, "session not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

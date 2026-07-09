@@ -36,7 +36,9 @@ func NewRouter(deps Deps) http.Handler {
 	mux.Handle("PUT /api/v1/vault/items/{id}", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.UpdateItem)))
 	mux.Handle("DELETE /api/v1/vault/items/{id}", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.DeleteItem)))
 	mux.Handle("POST /api/v1/vault/items/{id}/restore", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.RestoreItem)))
-
+	mux.Handle("GET /api/v1/auth/sessions", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.ListSessions)))
+	mux.Handle("DELETE /api/v1/auth/sessions/{id}", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.RevokeSession)))
+	
 	return middleware.Chain(mux,
 		middleware.Recover,
 		middleware.LogRequests,

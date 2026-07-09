@@ -18,8 +18,17 @@ WHERE id = $1
   AND revoked_at IS NULL
   AND expires_at > NOW();
 
--- name: RevokeSession :exec
+-- name: RevokeSession :execrows
 UPDATE sessions
 SET revoked_at = NOW()
 WHERE id = $1
-  AND revoked_at IS NULL;
+  AND revoked_at IS NULL
+  AND user_id = $2;
+
+-- name: ListSessionsByUserID :many
+SELECT id, user_id, device_name, ip_address, user_agent, created_at, expires_at, revoked_at
+FROM sessions
+WHERE user_id = $1
+  AND revoked_at IS NULL
+  AND expires_at > NOW()
+ORDER BY created_at DESC;
