@@ -24,7 +24,8 @@ func NewRouter(deps Deps) http.Handler {
 	})
 	auth := service.NewAuthService(deps.Users, deps.Sessions, deps.JWTSecret)
 	vault := service.NewVaultService(deps.VaultItems)
-	h := handlers.NewHandler(auth, vault)
+	mfa := service.NewMFAService(deps.Users)
+	h := handlers.NewHandler(auth, vault, mfa)
 	mux.HandleFunc("POST /api/v1/auth/signup", h.Signup)
 	mux.HandleFunc("POST /api/v1/auth/login", h.Login)
 	mux.Handle("GET /api/v1/me", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.Me)))
@@ -38,7 +39,10 @@ func NewRouter(deps Deps) http.Handler {
 	mux.Handle("POST /api/v1/vault/items/{id}/restore", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.RestoreItem)))
 	mux.Handle("GET /api/v1/auth/sessions", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.ListSessions)))
 	mux.Handle("DELETE /api/v1/auth/sessions/{id}", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.RevokeSession)))
-	
+	mux.Handle("POST /api/v1/mfa/enable", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.EnableMFA)))
+	mux.Handle("POST /api/v1/mfa/verify", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.VerifyMFA)))
+	mux.Handle("POST /api/v1/mfa/disable", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.DisableMFA)))
+
 	return middleware.Chain(mux,
 		middleware.Recover,
 		middleware.LogRequests,

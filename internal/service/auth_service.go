@@ -62,8 +62,7 @@ type LoginDeviceInfo struct {
     UserAgent  string
 }
 
-func (s *AuthService) Login(ctx context.Context, email, password string, device LoginDeviceInfo) (accessToken, refreshToken string, err error) {
-    // 1. Look up user
+func (s *AuthService) Login(ctx context.Context, email, password, totpCode string, device LoginDeviceInfo) (accessToken, refreshToken string, err error) {
 	user, err := s.users.GetByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -71,7 +70,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string, device 
 		}
 		return "", "", fmt.Errorf("get user by email: %w", err)
 	}
-	
+
 	ok, err := crypto.CheckPasswordHash(password, user.PasswordHash)
 	if err != nil {
 		return "", "", fmt.Errorf("check password hash: %w", err)
@@ -80,7 +79,16 @@ func (s *AuthService) Login(ctx context.Context, email, password string, device 
 		return "", "", ErrInvalidCredentials
 	}
 
-    refreshToken, err = crypto.GenerateRefreshToken()
+	if user.MfaEnabled {
+		if strings.TrimSpace(totpCode) == "" {
+			return "", "", ErrMFARequired
+		}
+		if user.MfaSecret == nil || !crypto.ValidateTOTPCode(*user.MfaSecret, totpCode) {
+			return "", "", ErrInvalidTOTPCode
+		}
+	}
+
+	refreshToken, err = crypto.GenerateRefreshToken()
     if err != nil {
         return "", "", fmt.Errorf("generate refresh token: %w", err)
     }

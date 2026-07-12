@@ -14,12 +14,13 @@ import (
 )
 
 type Handler struct {
-	authService *service.AuthService
+	authService  *service.AuthService
 	vaultService *service.VaultService
+	mfaService   *service.MFAService
 }
 
-func NewHandler(auth *service.AuthService, vault *service.VaultService) *Handler {
-    return &Handler{authService: auth, vaultService: vault}
+func NewHandler(auth *service.AuthService, vault *service.VaultService, mfa *service.MFAService) *Handler {
+	return &Handler{authService: auth, vaultService: vault, mfaService: mfa}
 }
 
 func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
@@ -62,27 +63,41 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Email      string `json:"email"`
+		Password   string `json:"password"`
 		DeviceName string `json:"device_name"`
+		TotpCode   string `json:"totp_code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
-	
-	accessToken, refreshToken, err := h.authService.Login(r.Context(), req.Email, req.Password, service.LoginDeviceInfo{
+
+	accessToken, refreshToken, err := h.authService.Login(r.Context(), req.Email, req.Password, req.TotpCode, service.LoginDeviceInfo{
 		DeviceName: req.DeviceName,
-		IPAddress: requestmeta.ClientIP(r),
-		UserAgent: r.Header.Get("User-Agent"),
+		IPAddress:  requestmeta.ClientIP(r),
+		UserAgent:  r.Header.Get("User-Agent"),
 	})
 
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) {
-			http.Error(w, "invalid credentials", http.StatusUnauthorized)  // 401
+			http.Error(w, "invalid credentials", http.StatusUnauthorized)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)  // 500
+		if errors.Is(err, service.ErrMFARequired) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]any{
+				"error":        "mfa required",
+				"mfa_required": true,
+			})
+			return
+		}
+		if errors.Is(err, service.ErrInvalidTOTPCode) {
+			http.Error(w, "invalid totp code", http.StatusUnauthorized)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 

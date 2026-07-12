@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"errors"
+
+	"github.com/google/uuid"
 	"vault_api/internal/domain"
 )
 

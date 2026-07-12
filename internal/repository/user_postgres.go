@@ -149,8 +149,8 @@ func userRowFromGetByID(r sqlc.GetUserByIDRow) (userRow, error) {
 }
 
 func (r *userPostgresRepository) EnableMFASecret(ctx context.Context, id uuid.UUID, secret string) error {
-	_, err := r.q.EnableMFASecret(ctx, sqlc.EnableMFASecretParams{
-		ID: pgUUIDToPG(id),
+	err := r.q.EnableMFASecret(ctx, sqlc.EnableMFASecretParams{
+		ID:        pgUUIDToPG(id),
 		MfaSecret: pgTextFromString(secret),
 	})
 	if err != nil {
@@ -160,7 +160,7 @@ func (r *userPostgresRepository) EnableMFASecret(ctx context.Context, id uuid.UU
 }
 
 func (r *userPostgresRepository) ConfirmMFA(ctx context.Context, id uuid.UUID) error {
-	_, err := r.q.ConfirmMFA(ctx, pgUUIDToPG(id))
+	err := r.q.ConfirmMFA(ctx, pgUUIDToPG(id))
 	if err != nil {
 		return fmt.Errorf("confirm mfa: %w", err)
 	}
@@ -168,7 +168,7 @@ func (r *userPostgresRepository) ConfirmMFA(ctx context.Context, id uuid.UUID) e
 }
 
 func (r *userPostgresRepository) DisableMFA(ctx context.Context, id uuid.UUID) error {
-	_, err := r.q.DisableMFA(ctx, pgUUIDToPG(id))
+	err := r.q.DisableMFA(ctx, pgUUIDToPG(id))
 	if err != nil {
 		return fmt.Errorf("disable mfa: %w", err)
 	}
