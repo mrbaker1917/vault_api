@@ -115,3 +115,62 @@ func toDomainUser(row userRow) domain.User {
 		MfaSecret: row.mfaSecret,
 	}
 }
+
+func (r *userPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (domain.User, error) {
+	row, err := r.q.GetUserByID(ctx, pgUUIDToPG(id))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.User{}, ErrNotFound
+		}
+		return domain.User{}, fmt.Errorf("get user by id: %w", err)
+	}
+	userRow, err := userRowFromGetByID(row)
+	if err != nil {
+		return domain.User{}, fmt.Errorf("get user by id: %w", err)
+	}
+	return toDomainUser(userRow), nil
+}
+
+func userRowFromGetByID(r sqlc.GetUserByIDRow) (userRow, error) {
+	id, err := uuidFromPG(r.ID)
+	if err != nil {
+		return userRow{}, fmt.Errorf("get user by id: %w", err)
+	}
+	return userRow{
+		id: id,
+		email: r.Email,
+		passwordHash: r.PasswordHash,
+		createdAt: pgTimestampFromPG(r.CreatedAt),
+		updatedAt: pgTimestampFromPG(r.UpdatedAt),
+		isActive: pgBoolFromPG(r.IsActive),
+		mfaEnabled: pgBoolFromPG(r.MfaEnabled),
+		mfaSecret: pgTextToPtr(r.MfaSecret),
+	}, nil
+}
+
+func (r *userPostgresRepository) EnableMFASecret(ctx context.Context, id uuid.UUID, secret string) error {
+	_, err := r.q.EnableMFASecret(ctx, sqlc.EnableMFASecretParams{
+		ID: pgUUIDToPG(id),
+		MfaSecret: pgTextFromString(secret),
+	})
+	if err != nil {
+		return fmt.Errorf("enable mfa secret: %w", err)
+	}
+	return nil
+}
+
+func (r *userPostgresRepository) ConfirmMFA(ctx context.Context, id uuid.UUID) error {
+	_, err := r.q.ConfirmMFA(ctx, pgUUIDToPG(id))
+	if err != nil {
+		return fmt.Errorf("confirm mfa: %w", err)
+	}
+	return nil
+}
+
+func (r *userPostgresRepository) DisableMFA(ctx context.Context, id uuid.UUID) error {
+	_, err := r.q.DisableMFA(ctx, pgUUIDToPG(id))
+	if err != nil {
+		return fmt.Errorf("disable mfa: %w", err)
+	}
+	return nil
+}

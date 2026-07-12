@@ -11,6 +11,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const confirmMFA = `-- name: ConfirmMFA :exec
+UPDATE users SET mfa_enabled = TRUE, updated_at = NOW() WHERE id = $1
+`
+
+func (q *Queries) ConfirmMFA(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, confirmMFA, id)
+	return err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, password_hash, created_at, updated_at, is_active, mfa_enabled, mfa_secret)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -62,6 +71,29 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 	return i, err
 }
 
+const disableMFA = `-- name: DisableMFA :exec
+UPDATE users SET mfa_enabled = FALSE, mfa_secret = NULL, updated_at = NOW() WHERE id = $1
+`
+
+func (q *Queries) DisableMFA(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, disableMFA, id)
+	return err
+}
+
+const enableMFASecret = `-- name: EnableMFASecret :exec
+UPDATE users SET mfa_secret = $2, updated_at = NOW() WHERE id = $1
+`
+
+type EnableMFASecretParams struct {
+	ID        pgtype.UUID
+	MfaSecret pgtype.Text
+}
+
+func (q *Queries) EnableMFASecret(ctx context.Context, arg EnableMFASecretParams) error {
+	_, err := q.db.Exec(ctx, enableMFASecret, arg.ID, arg.MfaSecret)
+	return err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT id, email, password_hash, created_at, updated_at, is_active, mfa_enabled, mfa_secret
 FROM users
@@ -82,6 +114,39 @@ type GetUserByEmailRow struct {
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error) {
 	row := q.db.QueryRow(ctx, getUserByEmail, email)
 	var i GetUserByEmailRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsActive,
+		&i.MfaEnabled,
+		&i.MfaSecret,
+	)
+	return i, err
+}
+
+const getUserByID = `-- name: GetUserByID :one
+SELECT id, email, password_hash, created_at, updated_at, is_active, mfa_enabled, mfa_secret
+FROM users 
+WHERE id = $1
+`
+
+type GetUserByIDRow struct {
+	ID           pgtype.UUID
+	Email        string
+	PasswordHash string
+	CreatedAt    pgtype.Timestamp
+	UpdatedAt    pgtype.Timestamp
+	IsActive     pgtype.Bool
+	MfaEnabled   pgtype.Bool
+	MfaSecret    pgtype.Text
+}
+
+func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (GetUserByIDRow, error) {
+	row := q.db.QueryRow(ctx, getUserByID, id)
+	var i GetUserByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.Email,

@@ -7,3 +7,17 @@ RETURNING id, email, password_hash, created_at, updated_at, is_active, mfa_enabl
 SELECT id, email, password_hash, created_at, updated_at, is_active, mfa_enabled, mfa_secret
 FROM users
 WHERE email = $1;
+
+-- name: GetUserByID :one
+SELECT id, email, password_hash, created_at, updated_at, is_active, mfa_enabled, mfa_secret
+FROM users 
+WHERE id = $1;
+
+-- name: EnableMFASecret :exec
+UPDATE users SET mfa_secret = $2, updated_at = NOW() WHERE id = $1;
+
+-- name: ConfirmMFA :exec
+UPDATE users SET mfa_enabled = TRUE, updated_at = NOW() WHERE id = $1;
+
+-- name: DisableMFA :exec
+UPDATE users SET mfa_enabled = FALSE, mfa_secret = NULL, updated_at = NOW() WHERE id = $1;
