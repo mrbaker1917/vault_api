@@ -88,6 +88,10 @@ func (s *AuthService) Login(ctx context.Context, email, password, totpCode strin
 		}
 	}
 
+	return s.CreateSessionTokens(ctx, user, device)
+}
+
+func (s *AuthService) CreateSessionTokens(ctx context.Context, user domain.User, device LoginDeviceInfo) (accessToken, refreshToken string, err error) {
 	refreshToken, err = crypto.GenerateRefreshToken()
     if err != nil {
         return "", "", fmt.Errorf("generate refresh token: %w", err)

@@ -49,6 +49,7 @@ func main() {
 			return api.Deps{
 				Users:              repository.NewUserRepository(pg),
 				Sessions:           repository.NewSessionRepository(pg),
+				RecoveryCodes:      repository.NewRecoveryCodeRepository(pg),
 				JWTSecret:          cfg.JWTSecret,
 				VaultItems:         repository.NewVaultItemRepository(pg),
 				CORSAllowedOrigins: cfg.CORSAllowedOrigins,

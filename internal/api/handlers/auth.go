@@ -14,13 +14,19 @@ import (
 )
 
 type Handler struct {
-	authService  *service.AuthService
-	vaultService *service.VaultService
-	mfaService   *service.MFAService
+	authService     *service.AuthService
+	vaultService    *service.VaultService
+	mfaService      *service.MFAService
+	recoveryService *service.RecoveryService
 }
 
-func NewHandler(auth *service.AuthService, vault *service.VaultService, mfa *service.MFAService) *Handler {
-	return &Handler{authService: auth, vaultService: vault, mfaService: mfa}
+func NewHandler(auth *service.AuthService, vault *service.VaultService, mfa *service.MFAService, recovery *service.RecoveryService) *Handler {
+	return &Handler{
+		authService:     auth,
+		vaultService:    vault,
+		mfaService:      mfa,
+		recoveryService: recovery,
+	}
 }
 
 func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
