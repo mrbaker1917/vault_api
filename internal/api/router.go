@@ -12,6 +12,7 @@ type Deps struct {
 	Users              repository.UserRepository
 	Sessions           repository.SessionRepository
 	RecoveryCodes      repository.RecoveryCodeRepository
+	AuditLogs          repository.AuditLogRepository
 	JWTSecret          string
 	VaultItems         repository.VaultItemRepository
 	CORSAllowedOrigins []string
@@ -23,11 +24,12 @@ func NewRouter(deps Deps) http.Handler {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
-	auth := service.NewAuthService(deps.Users, deps.Sessions, deps.JWTSecret)
-	vault := service.NewVaultService(deps.VaultItems)
-	mfa := service.NewMFAService(deps.Users)
-	recovery := service.NewRecoveryService(deps.Users, deps.RecoveryCodes, auth)
-	h := handlers.NewHandler(auth, vault, mfa, recovery)
+	audit := service.NewAuditService(deps.AuditLogs)
+	auth := service.NewAuthService(deps.Users, deps.Sessions, deps.JWTSecret, audit)
+	vault := service.NewVaultService(deps.VaultItems, audit)
+	mfa := service.NewMFAService(deps.Users, audit)
+	recovery := service.NewRecoveryService(deps.Users, deps.RecoveryCodes, auth, audit)
+	h := handlers.NewHandler(auth, vault, mfa, recovery, audit)
 	mux.HandleFunc("POST /api/v1/auth/signup", h.Signup)
 	mux.HandleFunc("POST /api/v1/auth/login", h.Login)
 	mux.Handle("GET /api/v1/me", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.Me)))
@@ -46,6 +48,7 @@ func NewRouter(deps Deps) http.Handler {
 	mux.Handle("POST /api/v1/mfa/disable", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.DisableMFA)))
 	mux.Handle("POST /api/v1/recovery/generate", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.GenerateRecoveryCodes)))
 	mux.HandleFunc("POST /api/v1/recovery/verify", h.VerifyRecovery)
+	mux.Handle("GET /api/v1/audit/logs", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.ListAuditLogs)))
 
 	return middleware.Chain(mux,
 		middleware.Recover,

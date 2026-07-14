@@ -19,10 +19,11 @@ var (
 
 type MFAService struct {
 	users repository.UserRepository
+	audit *AuditService
 }
 
-func NewMFAService(users repository.UserRepository) *MFAService {
-	return &MFAService{users: users}
+func NewMFAService(users repository.UserRepository, audit *AuditService) *MFAService {
+	return &MFAService{users: users, audit: audit}
 }
 
 type MFASetup struct {
@@ -30,7 +31,7 @@ type MFASetup struct {
 	OTPAuthURL string
 }
 
-func (s *MFAService) EnableMFA(ctx context.Context, userID uuid.UUID) (MFASetup, error) {
+func (s *MFAService) EnableMFA(ctx context.Context, userID uuid.UUID, audit AuditContext) (MFASetup, error) {
 	user, err := s.users.GetByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -51,13 +52,17 @@ func (s *MFAService) EnableMFA(ctx context.Context, userID uuid.UUID) (MFASetup,
 		return MFASetup{}, fmt.Errorf("store mfa secret: %w", err)
 	}
 
+	if s.audit != nil {
+		s.audit.Log(ctx, userID, audit, AuditMFAEnable, "user", &userID, nil)
+	}
+
 	return MFASetup{
 		Secret:     setup.Secret,
 		OTPAuthURL: setup.OTPAuthURL,
 	}, nil
 }
 
-func (s *MFAService) VerifyMFA(ctx context.Context, userID uuid.UUID, code string) error {
+func (s *MFAService) VerifyMFA(ctx context.Context, userID uuid.UUID, audit AuditContext, code string) error {
 	user, err := s.users.GetByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -77,10 +82,15 @@ func (s *MFAService) VerifyMFA(ctx context.Context, userID uuid.UUID, code strin
 	if err := s.users.ConfirmMFA(ctx, userID); err != nil {
 		return fmt.Errorf("confirm mfa: %w", err)
 	}
+
+	if s.audit != nil {
+		s.audit.Log(ctx, userID, audit, AuditMFAVerify, "user", &userID, nil)
+	}
+
 	return nil
 }
 
-func (s *MFAService) DisableMFA(ctx context.Context, userID uuid.UUID, code string) error {
+func (s *MFAService) DisableMFA(ctx context.Context, userID uuid.UUID, audit AuditContext, code string) error {
 	user, err := s.users.GetByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -97,5 +107,10 @@ func (s *MFAService) DisableMFA(ctx context.Context, userID uuid.UUID, code stri
 	if err := s.users.DisableMFA(ctx, userID); err != nil {
 		return fmt.Errorf("disable mfa: %w", err)
 	}
+
+	if s.audit != nil {
+		s.audit.Log(ctx, userID, audit, AuditMFADisable, "user", &userID, nil)
+	}
+
 	return nil
 }

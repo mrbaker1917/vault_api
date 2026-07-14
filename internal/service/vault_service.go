@@ -21,13 +21,14 @@ type CreateVaultItemInput struct {
 
 type VaultService struct {
 	vaultItems repository.VaultItemRepository
+	audit      *AuditService
 }
 
-func NewVaultService(vaultItems repository.VaultItemRepository) *VaultService {
-	return &VaultService{vaultItems: vaultItems}
+func NewVaultService(vaultItems repository.VaultItemRepository, audit *AuditService) *VaultService {
+	return &VaultService{vaultItems: vaultItems, audit: audit}
 }
 
-func (s *VaultService) CreateItem(ctx context.Context, userID uuid.UUID, input CreateVaultItemInput) (domain.VaultItem, error) {
+func (s *VaultService) CreateItem(ctx context.Context, userID uuid.UUID, audit AuditContext, input CreateVaultItemInput) (domain.VaultItem, error) {
 	now := time.Now()
 	item, err := s.vaultItems.Create(ctx, domain.VaultItem{
 		UserID:        userID,
@@ -43,6 +44,15 @@ func (s *VaultService) CreateItem(ctx context.Context, userID uuid.UUID, input C
 	if err != nil {
 		return domain.VaultItem{}, fmt.Errorf("create vault item: %w", err)
 	}
+
+	if s.audit != nil {
+		itemID := item.ID
+		s.audit.Log(ctx, userID, audit, AuditVaultItemCreate, "vault_item", &itemID, map[string]any{
+			"item_type": item.ItemType,
+			"title":     item.Title,
+		})
+	}
+
 	return item, nil
 }
 
@@ -77,7 +87,7 @@ type UpdateVaultItemInput struct {
 	Version       int32
 }
 
-func (s *VaultService) UpdateItem(ctx context.Context, userID, itemID uuid.UUID, input UpdateVaultItemInput) (domain.VaultItem, error) {
+func (s *VaultService) UpdateItem(ctx context.Context, userID, itemID uuid.UUID, audit AuditContext, input UpdateVaultItemInput) (domain.VaultItem, error) {
 	if _, err := s.GetItem(ctx, userID, itemID); err != nil {
 		return domain.VaultItem{}, err
 	}
@@ -98,10 +108,18 @@ func (s *VaultService) UpdateItem(ctx context.Context, userID, itemID uuid.UUID,
 		return domain.VaultItem{}, fmt.Errorf("update vault item: %w", err)
 	}
 
+	if s.audit != nil {
+		s.audit.Log(ctx, userID, audit, AuditVaultItemUpdate, "vault_item", &itemID, map[string]any{
+			"item_type": item.ItemType,
+			"title":     item.Title,
+			"version":   item.Version,
+		})
+	}
+
 	return item, nil
 }
 
-func (s *VaultService) DeleteItem(ctx context.Context, userID, itemID uuid.UUID, version int32) (domain.VaultItem, error) {
+func (s *VaultService) DeleteItem(ctx context.Context, userID, itemID uuid.UUID, audit AuditContext, version int32) (domain.VaultItem, error) {
 	if _, err := s.GetItem(ctx, userID, itemID); err != nil {
 		return domain.VaultItem{}, err
 	}
@@ -113,16 +131,30 @@ func (s *VaultService) DeleteItem(ctx context.Context, userID, itemID uuid.UUID,
 		return domain.VaultItem{}, fmt.Errorf("delete vault item: %w", err)
 	}
 
+	if s.audit != nil {
+		s.audit.Log(ctx, userID, audit, AuditVaultItemDelete, "vault_item", &itemID, map[string]any{
+			"title":   item.Title,
+			"version": item.Version,
+		})
+	}
+
 	return item, nil
 }
 
-func (s *VaultService) RestoreItem(ctx context.Context, userID, itemID uuid.UUID, version int32) (domain.VaultItem, error) {
+func (s *VaultService) RestoreItem(ctx context.Context, userID, itemID uuid.UUID, audit AuditContext, version int32) (domain.VaultItem, error) {
 	item, err := s.vaultItems.Restore(ctx, itemID, version, userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return domain.VaultItem{}, ErrNotFound
 		}
 		return domain.VaultItem{}, fmt.Errorf("restore vault item: %w", err)
+	}
+
+	if s.audit != nil {
+		s.audit.Log(ctx, userID, audit, AuditVaultItemRestore, "vault_item", &itemID, map[string]any{
+			"title":   item.Title,
+			"version": item.Version,
+		})
 	}
 
 	return item, nil

@@ -50,6 +50,7 @@ func main() {
 				Users:              repository.NewUserRepository(pg),
 				Sessions:           repository.NewSessionRepository(pg),
 				RecoveryCodes:      repository.NewRecoveryCodeRepository(pg),
+				AuditLogs:          repository.NewAuditLogRepository(pg),
 				JWTSecret:          cfg.JWTSecret,
 				VaultItems:         repository.NewVaultItemRepository(pg),
 				CORSAllowedOrigins: cfg.CORSAllowedOrigins,

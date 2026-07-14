@@ -17,7 +17,7 @@ func (h *Handler) EnableMFA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	setup, err := h.mfaService.EnableMFA(r.Context(), userID)
+	setup, err := h.mfaService.EnableMFA(r.Context(), userID, auditContextFromRequest(r))
 	if err != nil {
 		if errors.Is(err, service.ErrMFAAlreadyEnabled) {
 			http.Error(w, "mfa already enabled", http.StatusConflict)
@@ -54,7 +54,7 @@ func (h *Handler) VerifyMFA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.mfaService.VerifyMFA(r.Context(), userID, req.Code)
+	err := h.mfaService.VerifyMFA(r.Context(), userID, auditContextFromRequest(r), req.Code)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrMFAAlreadyEnabled):
@@ -91,7 +91,7 @@ func (h *Handler) DisableMFA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.mfaService.DisableMFA(r.Context(), userID, req.Code)
+	err := h.mfaService.DisableMFA(r.Context(), userID, auditContextFromRequest(r), req.Code)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrMFANotEnabled):

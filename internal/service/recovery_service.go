@@ -18,21 +18,24 @@ type RecoveryService struct {
 	users         repository.UserRepository
 	recoveryCodes repository.RecoveryCodeRepository
 	auth          *AuthService
+	audit         *AuditService
 }
 
 func NewRecoveryService(
 	users repository.UserRepository,
 	recoveryCodes repository.RecoveryCodeRepository,
 	auth *AuthService,
+	audit *AuditService,
 ) *RecoveryService {
 	return &RecoveryService{
 		users:         users,
 		recoveryCodes: recoveryCodes,
 		auth:          auth,
+		audit:         audit,
 	}
 }
 
-func (s *RecoveryService) GenerateRecoveryCodes(ctx context.Context, userID uuid.UUID) ([]string, error) {
+func (s *RecoveryService) GenerateRecoveryCodes(ctx context.Context, userID uuid.UUID, audit AuditContext) ([]string, error) {
 	user, err := s.users.GetByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -64,6 +67,12 @@ func (s *RecoveryService) GenerateRecoveryCodes(ctx context.Context, userID uuid
 			return nil, fmt.Errorf("store recovery code: %w", err)
 		}
 		plaintextCodes = append(plaintextCodes, code)
+	}
+
+	if s.audit != nil {
+		s.audit.Log(ctx, userID, audit, AuditRecoveryGenerate, "user", &userID, map[string]any{
+			"code_count": len(plaintextCodes),
+		})
 	}
 
 	return plaintextCodes, nil
@@ -123,7 +132,22 @@ func (s *RecoveryService) VerifyRecoveryLogin(
 		return "", "", fmt.Errorf("mark recovery code used: %w", err)
 	}
 
-	return s.auth.CreateSessionTokens(ctx, user, device)
+	accessToken, refreshToken, err = s.auth.CreateSessionTokens(ctx, user, device)
+	if err != nil {
+		return "", "", err
+	}
+
+	if s.audit != nil {
+		userID := user.ID
+		s.audit.Log(ctx, user.ID, AuditContext{
+			IPAddress: device.IPAddress,
+			UserAgent: device.UserAgent,
+		}, AuditRecoveryVerify, "user", &userID, map[string]any{
+			"device_name": device.DeviceName,
+		})
+	}
+
+	return accessToken, refreshToken, nil
 }
 
 func normalizeRecoveryCode(code string) string {

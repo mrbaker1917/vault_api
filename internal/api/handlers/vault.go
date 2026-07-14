@@ -48,7 +48,7 @@ func (h *Handler) CreateItem(w http.ResponseWriter, r *http.Request) {
 		Tags:          req.Tags,
 	}
 
-	item, err := h.vaultService.CreateItem(r.Context(), userID, input)
+	item, err := h.vaultService.CreateItem(r.Context(), userID, auditContextFromRequest(r), input)
 	if err != nil {
 		http.Error(w, "failed to create item", http.StatusInternalServerError)
 		return
@@ -143,7 +143,7 @@ func (h *Handler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 		Version:       req.Version,
 	}
 
-	item, err := h.vaultService.UpdateItem(r.Context(), userID, itemID, input)
+	item, err := h.vaultService.UpdateItem(r.Context(), userID, itemID, auditContextFromRequest(r), input)
 	if err != nil {
 		if errors.Is(err, service.ErrNotFound) {
 			http.Error(w, "item not found", http.StatusNotFound)
@@ -178,7 +178,7 @@ func (h *Handler) DeleteItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	version := req.Version
-	item, err := h.vaultService.DeleteItem(r.Context(), userID, itemID, version)
+	item, err := h.vaultService.DeleteItem(r.Context(), userID, itemID, auditContextFromRequest(r), version)
 	if err != nil {
 		if errors.Is(err, service.ErrNotFound) {
 			http.Error(w, "item not found", http.StatusNotFound)
@@ -213,7 +213,7 @@ func (h *Handler) RestoreItem(w http.ResponseWriter, r *http.Request) {
 	}
 	version := req.Version
 
-	item, err := h.vaultService.RestoreItem(r.Context(), userID, itemID, version)
+	item, err := h.vaultService.RestoreItem(r.Context(), userID, itemID, auditContextFromRequest(r), version)
 	if err != nil {
 		if errors.Is(err, service.ErrNotFound) {
 			http.Error(w, "item not found", http.StatusNotFound)

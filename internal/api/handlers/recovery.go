@@ -18,7 +18,7 @@ func (h *Handler) GenerateRecoveryCodes(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	codes, err := h.recoveryService.GenerateRecoveryCodes(r.Context(), userID)
+	codes, err := h.recoveryService.GenerateRecoveryCodes(r.Context(), userID, auditContextFromRequest(r))
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrRecoveryRequiresMFA):

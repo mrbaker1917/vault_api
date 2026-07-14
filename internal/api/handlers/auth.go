@@ -18,14 +18,16 @@ type Handler struct {
 	vaultService    *service.VaultService
 	mfaService      *service.MFAService
 	recoveryService *service.RecoveryService
+	auditService    *service.AuditService
 }
 
-func NewHandler(auth *service.AuthService, vault *service.VaultService, mfa *service.MFAService, recovery *service.RecoveryService) *Handler {
+func NewHandler(auth *service.AuthService, vault *service.VaultService, mfa *service.MFAService, recovery *service.RecoveryService, audit *service.AuditService) *Handler {
 	return &Handler{
 		authService:     auth,
 		vaultService:    vault,
 		mfaService:      mfa,
 		recoveryService: recovery,
+		auditService:    audit,
 	}
 }
 
@@ -44,7 +46,7 @@ func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.authService.Signup(r.Context(), req.Email, req.Password)
+	user, err := h.authService.Signup(r.Context(), req.Email, req.Password, auditContextFromRequest(r))
 	if err != nil {
 		if errors.Is(err, service.ErrEmailAlreadyExists) {
 			http.Error(w, "email already exists", http.StatusConflict)
@@ -165,12 +167,17 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 	sessionID, ok := middleware.SessionIDFromContext(r.Context())
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	err := h.authService.Logout(r.Context(), sessionID)
+	err := h.authService.Logout(r.Context(), sessionID, userID, auditContextFromRequest(r))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -241,7 +248,7 @@ func (h *Handler) RevokeSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.authService.RevokeSession(r.Context(), sessionID, userID)
+	err = h.authService.RevokeSession(r.Context(), sessionID, userID, auditContextFromRequest(r))
 	if err != nil {
 		if errors.Is(err, service.ErrNotFound) {
 			http.Error(w, "session not found", http.StatusNotFound)
