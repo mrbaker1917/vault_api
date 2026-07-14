@@ -19,6 +19,27 @@ type CreateVaultItemInput struct {
 	Tags          []string
 }
 
+const (
+	defaultVaultListLimit = 50
+	maxVaultListLimit     = 100
+)
+
+type ListVaultItemsFilter struct {
+	Folder   string
+	ItemType string
+	Tag      string
+	Title    string
+	Limit    int32
+	Offset   int32
+}
+
+type ListVaultItemsResult struct {
+	Items  []domain.VaultItem
+	Total  int64
+	Limit  int32
+	Offset int32
+}
+
 type VaultService struct {
 	vaultItems repository.VaultItemRepository
 	audit      *AuditService
@@ -70,12 +91,35 @@ func (s *VaultService) GetItem(ctx context.Context, userID, itemID uuid.UUID) (d
 	return item, nil
 }
 
-func (s *VaultService) ListItems(ctx context.Context, userID uuid.UUID) ([]domain.VaultItem, error) {
-	items, err := s.vaultItems.ListByUserID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("list vault items: %w", err)
+func (s *VaultService) ListItems(ctx context.Context, userID uuid.UUID, filter ListVaultItemsFilter) (ListVaultItemsResult, error) {
+	if filter.Limit <= 0 {
+		filter.Limit = defaultVaultListLimit
 	}
-	return items, nil
+	if filter.Limit > maxVaultListLimit {
+		filter.Limit = maxVaultListLimit
+	}
+	if filter.Offset < 0 {
+		filter.Offset = 0
+	}
+
+	result, err := s.vaultItems.ListByUserID(ctx, userID, repository.ListVaultItemsFilter{
+		Folder:   filter.Folder,
+		ItemType: filter.ItemType,
+		Tag:      filter.Tag,
+		Title:    filter.Title,
+		Limit:    filter.Limit,
+		Offset:   filter.Offset,
+	})
+	if err != nil {
+		return ListVaultItemsResult{}, fmt.Errorf("list vault items: %w", err)
+	}
+
+	return ListVaultItemsResult{
+		Items:  result.Items,
+		Total:  result.Total,
+		Limit:  filter.Limit,
+		Offset: filter.Offset,
+	}, nil
 }
 
 type UpdateVaultItemInput struct {

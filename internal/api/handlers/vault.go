@@ -66,18 +66,30 @@ func (h *Handler) ListItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items, err := h.vaultService.ListItems(r.Context(), userID)
+	filter, err := parseVaultListFilter(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	result, err := h.vaultService.ListItems(r.Context(), userID, filter)
 	if err != nil {
 		http.Error(w, "failed to list items", http.StatusInternalServerError)
 		return
 	}
 
-	if len(items) == 0 {
-		items = []domain.VaultItem{}
+	if len(result.Items) == 0 {
+		result.Items = []domain.VaultItem{}
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(items)
+	json.NewEncoder(w).Encode(map[string]any{
+		"items":  result.Items,
+		"total":  result.Total,
+		"limit":  result.Limit,
+		"offset": result.Offset,
+	})
 }
 
 func (h *Handler) GetItem(w http.ResponseWriter, r *http.Request) {

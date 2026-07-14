@@ -16,6 +16,28 @@ WHERE user_id = $1
   AND deleted_at IS NULL
 ORDER BY created_at DESC;
 
+-- name: ListVaultItemsFiltered :many
+SELECT id, user_id, encrypted_data, item_type, title, folder, tags, created_at, updated_at, deleted_at, version
+FROM vault_items
+WHERE user_id = $1
+  AND deleted_at IS NULL
+  AND (NULLIF($2, '') IS NULL OR folder = $2)
+  AND (NULLIF($3, '') IS NULL OR item_type = $3)
+  AND (NULLIF($4, '') IS NULL OR $4 = ANY(tags))
+  AND (NULLIF($5, '') IS NULL OR title ILIKE '%' || $5 || '%')
+ORDER BY created_at DESC
+LIMIT $6 OFFSET $7;
+
+-- name: CountVaultItemsFiltered :one
+SELECT COUNT(*)
+FROM vault_items
+WHERE user_id = $1
+  AND deleted_at IS NULL
+  AND (NULLIF($2, '') IS NULL OR folder = $2)
+  AND (NULLIF($3, '') IS NULL OR item_type = $3)
+  AND (NULLIF($4, '') IS NULL OR $4 = ANY(tags))
+  AND (NULLIF($5, '') IS NULL OR title ILIKE '%' || $5 || '%');
+
 -- name: UpdateVaultItem :one
 UPDATE vault_items
 SET encrypted_data = $2, item_type = $3, title = $4, folder = $5, tags = $6, updated_at = $7, version = version + 1

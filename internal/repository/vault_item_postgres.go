@@ -59,20 +59,46 @@ func (r *vaultItemPostgresRepository) GetByID(ctx context.Context, id uuid.UUID)
 	return toDomainVaultItem(vaultItemRow), nil
 }
 
-func (r *vaultItemPostgresRepository) ListByUserID(ctx context.Context, userID uuid.UUID) ([]domain.VaultItem, error) {
-	rows, err := r.q.ListVaultItemsByUserID(ctx, pgUUIDToPG(userID))
-	if err != nil {
-		return nil, fmt.Errorf("list vault items by user id: %w", err)
+func (r *vaultItemPostgresRepository) ListByUserID(ctx context.Context, userID uuid.UUID, filter ListVaultItemsFilter) (ListVaultItemsResult, error) {
+	params := sqlc.ListVaultItemsFilteredParams{
+		UserID:   pgUUIDToPG(userID),
+		Folder:   filter.Folder,
+		ItemType: filter.ItemType,
+		Tag:      filter.Tag,
+		Title:    filter.Title,
+		Limit:    filter.Limit,
+		Offset:   filter.Offset,
 	}
+
+	total, err := r.q.CountVaultItemsFiltered(ctx, sqlc.CountVaultItemsFilteredParams{
+		UserID:   params.UserID,
+		Folder:   params.Folder,
+		ItemType: params.ItemType,
+		Tag:      params.Tag,
+		Title:    params.Title,
+	})
+	if err != nil {
+		return ListVaultItemsResult{}, fmt.Errorf("count vault items: %w", err)
+	}
+
+	rows, err := r.q.ListVaultItemsFiltered(ctx, params)
+	if err != nil {
+		return ListVaultItemsResult{}, fmt.Errorf("list vault items by user id: %w", err)
+	}
+
 	items := make([]domain.VaultItem, 0, len(rows))
 	for _, row := range rows {
 		vaultItemRow, err := vaultItemRowFromSQLC(row)
 		if err != nil {
-			return nil, fmt.Errorf("list vault items by user id: %w", err)
+			return ListVaultItemsResult{}, fmt.Errorf("list vault items by user id: %w", err)
 		}
 		items = append(items, toDomainVaultItem(vaultItemRow))
 	}
-	return items, nil
+
+	return ListVaultItemsResult{
+		Items: items,
+		Total: total,
+	}, nil
 }
 
 type vaultItemRow struct {

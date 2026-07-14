@@ -157,6 +157,101 @@ func (q *Queries) ListVaultItemsByUserID(ctx context.Context, userID pgtype.UUID
 	return items, nil
 }
 
+const listVaultItemsFiltered = `-- name: ListVaultItemsFiltered :many
+SELECT id, user_id, encrypted_data, item_type, title, folder, tags, created_at, updated_at, deleted_at, version
+FROM vault_items
+WHERE user_id = $1
+  AND deleted_at IS NULL
+  AND (NULLIF($2, '') IS NULL OR folder = $2)
+  AND (NULLIF($3, '') IS NULL OR item_type = $3)
+  AND (NULLIF($4, '') IS NULL OR $4 = ANY(tags))
+  AND (NULLIF($5, '') IS NULL OR title ILIKE '%' || $5 || '%')
+ORDER BY created_at DESC
+LIMIT $6 OFFSET $7
+`
+
+type ListVaultItemsFilteredParams struct {
+	UserID   pgtype.UUID
+	Folder   string
+	ItemType string
+	Tag      string
+	Title    string
+	Limit    int32
+	Offset   int32
+}
+
+func (q *Queries) ListVaultItemsFiltered(ctx context.Context, arg ListVaultItemsFilteredParams) ([]VaultItem, error) {
+	rows, err := q.db.Query(ctx, listVaultItemsFiltered,
+		arg.UserID,
+		arg.Folder,
+		arg.ItemType,
+		arg.Tag,
+		arg.Title,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []VaultItem
+	for rows.Next() {
+		var i VaultItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.EncryptedData,
+			&i.ItemType,
+			&i.Title,
+			&i.Folder,
+			&i.Tags,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.Version,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countVaultItemsFiltered = `-- name: CountVaultItemsFiltered :one
+SELECT COUNT(*)
+FROM vault_items
+WHERE user_id = $1
+  AND deleted_at IS NULL
+  AND (NULLIF($2, '') IS NULL OR folder = $2)
+  AND (NULLIF($3, '') IS NULL OR item_type = $3)
+  AND (NULLIF($4, '') IS NULL OR $4 = ANY(tags))
+  AND (NULLIF($5, '') IS NULL OR title ILIKE '%' || $5 || '%')
+`
+
+type CountVaultItemsFilteredParams struct {
+	UserID   pgtype.UUID
+	Folder   string
+	ItemType string
+	Tag      string
+	Title    string
+}
+
+func (q *Queries) CountVaultItemsFiltered(ctx context.Context, arg CountVaultItemsFilteredParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countVaultItemsFiltered,
+		arg.UserID,
+		arg.Folder,
+		arg.ItemType,
+		arg.Tag,
+		arg.Title,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const restoreVaultItem = `-- name: RestoreVaultItem :one
 UPDATE vault_items
 SET deleted_at = NULL, version = version + 1
