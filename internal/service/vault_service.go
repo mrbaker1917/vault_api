@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"vault_api/internal/crypto"
 	"vault_api/internal/domain"
 	"vault_api/internal/repository"
 )
@@ -50,6 +51,10 @@ func NewVaultService(vaultItems repository.VaultItemRepository, audit *AuditServ
 }
 
 func (s *VaultService) CreateItem(ctx context.Context, userID uuid.UUID, audit AuditContext, input CreateVaultItemInput) (domain.VaultItem, error) {
+	if err := crypto.ValidateEncryptedBlob(input.EncryptedData); err != nil {
+		return domain.VaultItem{}, fmt.Errorf("%w: %w", ErrInvalidEncryptedBlob, err)
+	}
+
 	now := time.Now()
 	item, err := s.vaultItems.Create(ctx, domain.VaultItem{
 		UserID:        userID,
@@ -132,6 +137,10 @@ type UpdateVaultItemInput struct {
 }
 
 func (s *VaultService) UpdateItem(ctx context.Context, userID, itemID uuid.UUID, audit AuditContext, input UpdateVaultItemInput) (domain.VaultItem, error) {
+	if err := crypto.ValidateEncryptedBlob(input.EncryptedData); err != nil {
+		return domain.VaultItem{}, fmt.Errorf("%w: %w", ErrInvalidEncryptedBlob, err)
+	}
+
 	if _, err := s.GetItem(ctx, userID, itemID); err != nil {
 		return domain.VaultItem{}, err
 	}

@@ -31,10 +31,6 @@ func (h *Handler) CreateItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(req.EncryptedData) == 0 {
-		http.Error(w, "encrypted_data is required", http.StatusBadRequest)
-		return
-	}
 	if strings.TrimSpace(req.ItemType) == "" {
 		http.Error(w, "item_type is required", http.StatusBadRequest)
 		return
@@ -50,6 +46,10 @@ func (h *Handler) CreateItem(w http.ResponseWriter, r *http.Request) {
 
 	item, err := h.vaultService.CreateItem(r.Context(), userID, auditContextFromRequest(r), input)
 	if err != nil {
+		if errors.Is(err, service.ErrInvalidEncryptedBlob) {
+			http.Error(w, "invalid encrypted blob", http.StatusBadRequest)
+			return
+		}
 		http.Error(w, "failed to create item", http.StatusInternalServerError)
 		return
 	}
@@ -157,6 +157,10 @@ func (h *Handler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 
 	item, err := h.vaultService.UpdateItem(r.Context(), userID, itemID, auditContextFromRequest(r), input)
 	if err != nil {
+		if errors.Is(err, service.ErrInvalidEncryptedBlob) {
+			http.Error(w, "invalid encrypted blob", http.StatusBadRequest)
+			return
+		}
 		if errors.Is(err, service.ErrNotFound) {
 			http.Error(w, "item not found", http.StatusNotFound)
 			return
