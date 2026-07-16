@@ -54,9 +54,7 @@ func (h *Handler) CreateItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(item)
+	writeJSON(w, http.StatusCreated, item)
 }
 
 func (h *Handler) ListItems(w http.ResponseWriter, r *http.Request) {
@@ -82,9 +80,7 @@ func (h *Handler) ListItems(w http.ResponseWriter, r *http.Request) {
 		result.Items = []domain.VaultItem{}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]any{
+	writeJSON(w, http.StatusOK, map[string]any{
 		"items":  result.Items,
 		"total":  result.Total,
 		"limit":  result.Limit,
@@ -114,9 +110,7 @@ func (h *Handler) GetItem(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to get item", http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")	
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(item)
+	writeJSON(w, http.StatusOK, item)
 }
 
 func (h *Handler) UpdateItem(w http.ResponseWriter, r *http.Request) {
@@ -168,9 +162,7 @@ func (h *Handler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to update item", http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(item)
+	writeJSON(w, http.StatusOK, item)
 }
 
 func (h *Handler) DeleteItem(w http.ResponseWriter, r *http.Request) {
@@ -203,9 +195,7 @@ func (h *Handler) DeleteItem(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to delete item", http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(item)
+	writeJSON(w, http.StatusOK, item)
 }
 
 func (h *Handler) RestoreItem(w http.ResponseWriter, r *http.Request) {
@@ -238,7 +228,5 @@ func (h *Handler) RestoreItem(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to restore item", http.StatusInternalServerError)
 			return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(item)
+	writeJSON(w, http.StatusOK, item)
 }

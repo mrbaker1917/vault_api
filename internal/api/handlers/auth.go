@@ -56,9 +56,7 @@ func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, http.StatusCreated, map[string]string{
 		"id":    user.ID.String(),
 		"email": user.Email,
 	})
@@ -93,9 +91,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errors.Is(err, service.ErrMFARequired) {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]any{
+			writeJSON(w, http.StatusUnauthorized, map[string]any{
 				"error":        "mfa required",
 				"mfa_required": true,
 			})
@@ -109,10 +105,8 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"access_token": accessToken,
+	writeJSON(w, http.StatusOK, map[string]string{
+		"access_token":  accessToken,
 		"refresh_token": refreshToken,
 	})
 }
@@ -124,8 +118,7 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(map[string]string{
+    writeJSON(w, http.StatusOK, map[string]string{
         "id": userID.String(),
     })
 }
@@ -159,9 +152,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, http.StatusOK, map[string]string{
 		"access_token": accessToken,
 	})
 }
@@ -184,9 +175,6 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-	json.NewEncoder(w).Encode(map[string]string{
-		"message": "logged out successfully",
-	})
 }
 	
 func (h *Handler) ListSessions(w http.ResponseWriter, r *http.Request) {
@@ -230,9 +218,7 @@ func (h *Handler) ListSessions(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (h *Handler) RevokeSession(w http.ResponseWriter, r *http.Request) {
