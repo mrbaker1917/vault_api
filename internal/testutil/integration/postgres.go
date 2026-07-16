@@ -19,6 +19,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"vault_api/internal/api"
+	"vault_api/internal/api/middleware"
 	"vault_api/internal/repository"
 )
 
@@ -36,6 +37,8 @@ func NewTestRouter(t *testing.T) (http.Handler, func()) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+
+	middleware.ResetAuthRateLimiterForTests()
 
 	connStr, cleanupDB, ok := resolveDatabaseURL(t)
 	if !ok {
@@ -196,5 +199,5 @@ func migrationsDir(t *testing.T) string {
 	if !ok {
 		t.Fatal("failed to determine test file location")
 	}
-	return filepath.Clean(filepath.Join(filepath.Dir(filename), "..", "..", "migrations"))
+	return filepath.Clean(filepath.Join(filepath.Dir(filename), "..", "..", "..", "migrations"))
 }

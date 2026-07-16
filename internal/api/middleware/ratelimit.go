@@ -14,6 +14,11 @@ const (
 
 var authRateLimiter = newIPRateLimiter(authRateLimitCount, authRateLimitWindow)
 
+// ResetAuthRateLimiterForTests clears auth rate limit state between tests.
+func ResetAuthRateLimiterForTests() {
+	authRateLimiter = newIPRateLimiter(authRateLimitCount, authRateLimitWindow)
+}
+
 func AuthRateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !isAuthRateLimitedRoute(r.Method, r.URL.Path) {
