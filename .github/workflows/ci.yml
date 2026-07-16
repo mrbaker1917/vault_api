@@ -13,10 +13,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
@@ -24,10 +24,11 @@ jobs:
       - name: Verify dependencies
         run: go mod verify
 
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.62.2
+
       - name: Lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: v1.62.2
+        run: golangci-lint run ./...
 
       - name: Unit tests
         run: go test -race -count=1 ./...
