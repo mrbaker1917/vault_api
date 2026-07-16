@@ -1,0 +1,42 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: vault_api_app
+    ports:
+      - "${APP_HOST_PORT:-8081}:8080"
+    environment:
+      PORT: "8080"
+      DATABASE_URL: "postgres://vault:vault@postgres:5432/vault_api?sslmode=disable"
+      REDIS_URL: "redis://redis:6379"
+      JWT_SECRET: "dev-secret"
+    depends_on:
+      - postgres
+      - redis
+
+  postgres:
+    image: postgres:17
+    container_name: vault_api_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vault_api
+      POSTGRES_USER: vault
+      POSTGRES_PASSWORD: vault
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:8
+    container_name: vault_api_redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_HOST_PORT:-6380}:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
