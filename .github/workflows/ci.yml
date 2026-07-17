@@ -24,6 +24,9 @@ jobs:
       - name: Verify dependencies
         run: go mod verify
 
+      - name: Validate OpenAPI spec
+        run: npx --yes @apidevtools/swagger-cli@4 validate docs/openapi.yaml
+
       - name: Install golangci-lint
         run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.62.2
 

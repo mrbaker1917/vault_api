@@ -614,20 +614,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/SharedVaultItemRecord"
         "400":
-          description: Validation error
-          content:
-            text/plain:
-              schema:
-                type: string
-                examples:
-                  missingEmail:
-                    value: email is required
-                  invalidKey:
-                    value: invalid encrypted item key
-                  invalidPermission:
-                    value: permission must be read or write
-                  selfShare:
-                    value: cannot share item with yourself
+          $ref: "#/components/responses/BadRequestText"
         "401":
           $ref: "#/components/responses/UnauthorizedText"
         "404":
