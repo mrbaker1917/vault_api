@@ -333,6 +333,12 @@ vault-api/
 - Polish operations (metrics, CI/CD, docs)
 - Create demo (CLI or web client showing encryption)
 
+### Documentation
+
+- [Architecture](docs/architecture.md) — system design, data model, auth and zero-knowledge vault flow
+- [Threat model](docs/threat_model.md) — assets, trust boundaries, threats, mitigations, and trade-offs
+- [OpenAPI spec](docs/openapi.yaml) — HTTP API contract (validated in CI)
+
 ### Additional Resources
 
 Zero-knowledge architecture: https://bitwarden.com/help/bitwarden-security-white-paper/
