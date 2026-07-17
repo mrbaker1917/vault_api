@@ -11,6 +11,38 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countVaultItemsFiltered = `-- name: CountVaultItemsFiltered :one
+SELECT COUNT(*)
+FROM vault_items
+WHERE user_id = $1
+  AND deleted_at IS NULL
+  AND (NULLIF($2, '') IS NULL OR folder = $2)
+  AND (NULLIF($3, '') IS NULL OR item_type = $3)
+  AND (NULLIF($4, '') IS NULL OR $4 = ANY(tags))
+  AND (NULLIF($5, '') IS NULL OR title ILIKE '%' || $5 || '%')
+`
+
+type CountVaultItemsFilteredParams struct {
+	UserID  pgtype.UUID
+	Column2 interface{}
+	Column3 interface{}
+	Column4 interface{}
+	Column5 interface{}
+}
+
+func (q *Queries) CountVaultItemsFiltered(ctx context.Context, arg CountVaultItemsFilteredParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countVaultItemsFiltered,
+		arg.UserID,
+		arg.Column2,
+		arg.Column3,
+		arg.Column4,
+		arg.Column5,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createVaultItem = `-- name: CreateVaultItem :one
 INSERT INTO vault_items (user_id, encrypted_data, item_type, title, folder, tags, created_at, updated_at, version)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -171,22 +203,22 @@ LIMIT $6 OFFSET $7
 `
 
 type ListVaultItemsFilteredParams struct {
-	UserID   pgtype.UUID
-	Folder   string
-	ItemType string
-	Tag      string
-	Title    string
-	Limit    int32
-	Offset   int32
+	UserID  pgtype.UUID
+	Column2 interface{}
+	Column3 interface{}
+	Column4 interface{}
+	Column5 interface{}
+	Limit   int32
+	Offset  int32
 }
 
 func (q *Queries) ListVaultItemsFiltered(ctx context.Context, arg ListVaultItemsFilteredParams) ([]VaultItem, error) {
 	rows, err := q.db.Query(ctx, listVaultItemsFiltered,
 		arg.UserID,
-		arg.Folder,
-		arg.ItemType,
-		arg.Tag,
-		arg.Title,
+		arg.Column2,
+		arg.Column3,
+		arg.Column4,
+		arg.Column5,
 		arg.Limit,
 		arg.Offset,
 	)
@@ -218,38 +250,6 @@ func (q *Queries) ListVaultItemsFiltered(ctx context.Context, arg ListVaultItems
 		return nil, err
 	}
 	return items, nil
-}
-
-const countVaultItemsFiltered = `-- name: CountVaultItemsFiltered :one
-SELECT COUNT(*)
-FROM vault_items
-WHERE user_id = $1
-  AND deleted_at IS NULL
-  AND (NULLIF($2, '') IS NULL OR folder = $2)
-  AND (NULLIF($3, '') IS NULL OR item_type = $3)
-  AND (NULLIF($4, '') IS NULL OR $4 = ANY(tags))
-  AND (NULLIF($5, '') IS NULL OR title ILIKE '%' || $5 || '%')
-`
-
-type CountVaultItemsFilteredParams struct {
-	UserID   pgtype.UUID
-	Folder   string
-	ItemType string
-	Tag      string
-	Title    string
-}
-
-func (q *Queries) CountVaultItemsFiltered(ctx context.Context, arg CountVaultItemsFilteredParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countVaultItemsFiltered,
-		arg.UserID,
-		arg.Folder,
-		arg.ItemType,
-		arg.Tag,
-		arg.Title,
-	)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
 }
 
 const restoreVaultItem = `-- name: RestoreVaultItem :one

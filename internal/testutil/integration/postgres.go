@@ -63,12 +63,13 @@ func NewTestRouter(t *testing.T) (http.Handler, func()) {
 	}
 
 	deps := api.Deps{
-		Users:         repository.NewUserRepository(pg),
-		Sessions:      repository.NewSessionRepository(pg),
-		RecoveryCodes: repository.NewRecoveryCodeRepository(pg),
-		AuditLogs:     repository.NewAuditLogRepository(pg),
-		JWTSecret:     testJWTSecret,
-		VaultItems:    repository.NewVaultItemRepository(pg),
+		Users:            repository.NewUserRepository(pg),
+		Sessions:         repository.NewSessionRepository(pg),
+		RecoveryCodes:    repository.NewRecoveryCodeRepository(pg),
+		AuditLogs:        repository.NewAuditLogRepository(pg),
+		JWTSecret:        testJWTSecret,
+		VaultItems:       repository.NewVaultItemRepository(pg),
+		SharedVaultItems: repository.NewSharedVaultItemRepository(pg),
 	}
 
 	cleanup := func() {

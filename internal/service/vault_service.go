@@ -42,12 +42,24 @@ type ListVaultItemsResult struct {
 }
 
 type VaultService struct {
-	vaultItems repository.VaultItemRepository
-	audit      *AuditService
+	vaultItems  repository.VaultItemRepository
+	sharedItems repository.SharedVaultItemRepository
+	users       repository.UserRepository
+	audit       *AuditService
 }
 
-func NewVaultService(vaultItems repository.VaultItemRepository, audit *AuditService) *VaultService {
-	return &VaultService{vaultItems: vaultItems, audit: audit}
+func NewVaultService(
+	vaultItems repository.VaultItemRepository,
+	sharedItems repository.SharedVaultItemRepository,
+	users repository.UserRepository,
+	audit *AuditService,
+) *VaultService {
+	return &VaultService{
+		vaultItems:  vaultItems,
+		sharedItems: sharedItems,
+		users:       users,
+		audit:       audit,
+	}
 }
 
 func (s *VaultService) CreateItem(ctx context.Context, userID uuid.UUID, audit AuditContext, input CreateVaultItemInput) (domain.VaultItem, error) {

@@ -20,6 +20,8 @@ const (
 	AuditVaultItemUpdate    = "vault.item.update"
 	AuditVaultItemDelete    = "vault.item.delete"
 	AuditVaultItemRestore   = "vault.item.restore"
+	AuditVaultItemShare     = "vault.item.share"
+	AuditVaultItemShareRevoke = "vault.item.share.revoke"
 	AuditMFAEnable          = "mfa.enable"
 	AuditMFAVerify          = "mfa.verify"
 	AuditMFADisable         = "mfa.disable"

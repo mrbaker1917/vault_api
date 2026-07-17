@@ -15,6 +15,7 @@ type Deps struct {
 	AuditLogs          repository.AuditLogRepository
 	JWTSecret          string
 	VaultItems         repository.VaultItemRepository
+	SharedVaultItems   repository.SharedVaultItemRepository
 	CORSAllowedOrigins []string
 }
 
@@ -26,7 +27,7 @@ func NewRouter(deps Deps) http.Handler {
 	})
 	audit := service.NewAuditService(deps.AuditLogs)
 	auth := service.NewAuthService(deps.Users, deps.Sessions, deps.JWTSecret, audit)
-	vault := service.NewVaultService(deps.VaultItems, audit)
+	vault := service.NewVaultService(deps.VaultItems, deps.SharedVaultItems, deps.Users, audit)
 	mfa := service.NewMFAService(deps.Users, audit)
 	recovery := service.NewRecoveryService(deps.Users, deps.RecoveryCodes, auth, audit)
 	h := handlers.NewHandler(auth, vault, mfa, recovery, audit)
@@ -41,6 +42,9 @@ func NewRouter(deps Deps) http.Handler {
 	mux.Handle("PUT /api/v1/vault/items/{id}", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.UpdateItem)))
 	mux.Handle("DELETE /api/v1/vault/items/{id}", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.DeleteItem)))
 	mux.Handle("POST /api/v1/vault/items/{id}/restore", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.RestoreItem)))
+	mux.Handle("POST /api/v1/vault/items/{id}/share", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.ShareItem)))
+	mux.Handle("DELETE /api/v1/vault/items/{id}/share/{user_id}", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.RevokeShare)))
+	mux.Handle("GET /api/v1/vault/shared", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.ListSharedItems)))
 	mux.Handle("GET /api/v1/auth/sessions", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.ListSessions)))
 	mux.Handle("DELETE /api/v1/auth/sessions/{id}", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.RevokeSession)))
 	mux.Handle("POST /api/v1/mfa/enable", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.EnableMFA)))

@@ -231,6 +231,133 @@ func TestIntegrationVaultCRUD(t *testing.T) {
 	}
 }
 
+func TestIntegrationVaultSharing(t *testing.T) {
+	handler, cleanup := integration.NewTestRouter(t)
+	defer cleanup()
+
+	ownerEmail := fmt.Sprintf("owner-%d@example.com", time.Now().UnixNano())
+	recipientEmail := fmt.Sprintf("recipient-%d@example.com", time.Now().UnixNano())
+	password := "secure-password-123"
+
+	ownerToken := signupAndLoginWithCredentials(t, handler, ownerEmail, password)
+	recipientToken := signupAndLoginWithCredentials(t, handler, recipientEmail, password)
+
+	create := integration.DoJSON(t, handler, integration.JSONRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/vault/items",
+		Token:  ownerToken,
+		Body: map[string]any{
+			"encrypted_data": integration.ValidEncryptedBlob(),
+			"item_type":      "login",
+			"title":          "Shared Login",
+		},
+	})
+	if create.Status != http.StatusCreated {
+		t.Fatalf("create status = %d, body = %s", create.Status, create.Body)
+	}
+
+	var item struct {
+		ID string `json:"ID"`
+	}
+	integration.DecodeJSON(t, create, &item)
+
+	share := integration.DoJSON(t, handler, integration.JSONRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/vault/items/" + item.ID + "/share",
+		Token:  ownerToken,
+		Body: map[string]any{
+			"email":              recipientEmail,
+			"encrypted_item_key": []byte("wrapped-item-key"),
+			"permission":         "read",
+		},
+	})
+	if share.Status != http.StatusCreated {
+		t.Fatalf("share status = %d, body = %s", share.Status, share.Body)
+	}
+
+	var shareResp struct {
+		SharedWithUserID string `json:"SharedWithUserID"`
+		Permission       string `json:"Permission"`
+	}
+	integration.DecodeJSON(t, share, &shareResp)
+	if shareResp.Permission != "read" {
+		t.Fatalf("expected read permission, got %q", shareResp.Permission)
+	}
+	if shareResp.SharedWithUserID == "" {
+		t.Fatalf("expected shared_with user id in response: %s", share.Body)
+	}
+
+	dupShare := integration.DoJSON(t, handler, integration.JSONRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/vault/items/" + item.ID + "/share",
+		Token:  ownerToken,
+		Body: map[string]any{
+			"email":              recipientEmail,
+			"encrypted_item_key": []byte("wrapped-item-key"),
+			"permission":         "read",
+		},
+	})
+	if dupShare.Status != http.StatusConflict {
+		t.Fatalf("duplicate share status = %d, body = %s", dupShare.Status, dupShare.Body)
+	}
+
+	listShared := integration.DoJSON(t, handler, integration.JSONRequest{
+		Method: http.MethodGet,
+		Path:   "/api/v1/vault/shared",
+		Token:  recipientToken,
+	})
+	if listShared.Status != http.StatusOK {
+		t.Fatalf("list shared status = %d, body = %s", listShared.Status, listShared.Body)
+	}
+
+	var sharedList struct {
+		Items []struct {
+			VaultItemID string `json:"vault_item_id"`
+			Permission  string `json:"permission"`
+			Item        struct {
+				Title string `json:"Title"`
+			} `json:"item"`
+		} `json:"items"`
+		Total int64 `json:"total"`
+	}
+	integration.DecodeJSON(t, listShared, &sharedList)
+	if sharedList.Total != 1 || len(sharedList.Items) != 1 {
+		t.Fatalf("expected one shared item, got total=%d len=%d body=%s", sharedList.Total, len(sharedList.Items), listShared.Body)
+	}
+	if sharedList.Items[0].VaultItemID != item.ID {
+		t.Fatalf("expected vault item id %s, got %s", item.ID, sharedList.Items[0].VaultItemID)
+	}
+	if sharedList.Items[0].Item.Title != "Shared Login" {
+		t.Fatalf("expected shared item title, got %q", sharedList.Items[0].Item.Title)
+	}
+
+	revoke := integration.DoJSON(t, handler, integration.JSONRequest{
+		Method: http.MethodDelete,
+		Path:   "/api/v1/vault/items/" + item.ID + "/share/" + shareResp.SharedWithUserID,
+		Token:  ownerToken,
+	})
+	if revoke.Status != http.StatusNoContent {
+		t.Fatalf("revoke status = %d, body = %s", revoke.Status, revoke.Body)
+	}
+
+	listAfterRevoke := integration.DoJSON(t, handler, integration.JSONRequest{
+		Method: http.MethodGet,
+		Path:   "/api/v1/vault/shared",
+		Token:  recipientToken,
+	})
+	if listAfterRevoke.Status != http.StatusOK {
+		t.Fatalf("list shared after revoke status = %d, body = %s", listAfterRevoke.Status, listAfterRevoke.Body)
+	}
+
+	var emptyShared struct {
+		Total int64 `json:"total"`
+	}
+	integration.DecodeJSON(t, listAfterRevoke, &emptyShared)
+	if emptyShared.Total != 0 {
+		t.Fatalf("expected zero shared items after revoke, got %d", emptyShared.Total)
+	}
+}
+
 func TestIntegrationMFAFlow(t *testing.T) {
 	handler, cleanup := integration.NewTestRouter(t)
 	defer cleanup()

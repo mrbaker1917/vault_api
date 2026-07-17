@@ -53,6 +53,7 @@ func main() {
 				AuditLogs:          repository.NewAuditLogRepository(pg),
 				JWTSecret:          cfg.JWTSecret,
 				VaultItems:         repository.NewVaultItemRepository(pg),
+				SharedVaultItems:   repository.NewSharedVaultItemRepository(pg),
 				CORSAllowedOrigins: cfg.CORSAllowedOrigins,
 			}, nil
 		},

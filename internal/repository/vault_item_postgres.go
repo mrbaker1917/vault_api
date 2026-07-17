@@ -61,21 +61,21 @@ func (r *vaultItemPostgresRepository) GetByID(ctx context.Context, id uuid.UUID)
 
 func (r *vaultItemPostgresRepository) ListByUserID(ctx context.Context, userID uuid.UUID, filter ListVaultItemsFilter) (ListVaultItemsResult, error) {
 	params := sqlc.ListVaultItemsFilteredParams{
-		UserID:   pgUUIDToPG(userID),
-		Folder:   filter.Folder,
-		ItemType: filter.ItemType,
-		Tag:      filter.Tag,
-		Title:    filter.Title,
-		Limit:    filter.Limit,
-		Offset:   filter.Offset,
+		UserID:  pgUUIDToPG(userID),
+		Column2: filter.Folder,
+		Column3: filter.ItemType,
+		Column4: filter.Tag,
+		Column5: filter.Title,
+		Limit:   filter.Limit,
+		Offset:  filter.Offset,
 	}
 
 	total, err := r.q.CountVaultItemsFiltered(ctx, sqlc.CountVaultItemsFilteredParams{
-		UserID:   params.UserID,
-		Folder:   params.Folder,
-		ItemType: params.ItemType,
-		Tag:      params.Tag,
-		Title:    params.Title,
+		UserID:  params.UserID,
+		Column2: params.Column2,
+		Column3: params.Column3,
+		Column4: params.Column4,
+		Column5: params.Column5,
 	})
 	if err != nil {
 		return ListVaultItemsResult{}, fmt.Errorf("count vault items: %w", err)

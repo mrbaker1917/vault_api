@@ -99,7 +99,7 @@ func (s *stubVaultItemRepo) Restore(_ context.Context, id uuid.UUID, version int
 }
 
 func TestVaultServiceCreateItemValidatesEncryptedBlob(t *testing.T) {
-	svc := NewVaultService(newStubVaultItemRepo(), nil)
+	svc := NewVaultService(newStubVaultItemRepo(), nil, nil, nil)
 	userID := uuid.New()
 
 	_, err := svc.CreateItem(context.Background(), userID, AuditContext{}, CreateVaultItemInput{
@@ -113,7 +113,7 @@ func TestVaultServiceCreateItemValidatesEncryptedBlob(t *testing.T) {
 
 func TestVaultServiceCreateGetUpdateDeleteRestore(t *testing.T) {
 	repo := newStubVaultItemRepo()
-	svc := NewVaultService(repo, nil)
+	svc := NewVaultService(repo, nil, nil, nil)
 	userID := uuid.New()
 	otherUserID := uuid.New()
 
@@ -192,7 +192,7 @@ func TestVaultServiceCreateGetUpdateDeleteRestore(t *testing.T) {
 
 func TestVaultServiceListItemsAppliesDefaultLimit(t *testing.T) {
 	repo := newStubVaultItemRepo()
-	svc := NewVaultService(repo, nil)
+	svc := NewVaultService(repo, nil, nil, nil)
 	userID := uuid.New()
 
 	for i := 0; i < 3; i++ {
