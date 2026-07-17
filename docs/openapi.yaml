@@ -1,0 +1,1216 @@
+openapi: 3.0.3
+info:
+  title: Vault API
+  version: 1.0.0
+  description: |
+    Zero-knowledge password vault backend. The server stores encrypted blobs and metadata only;
+    clients derive encryption keys locally and encrypt vault contents before upload.
+
+    ## Authentication
+
+    Protected endpoints require a Bearer JWT access token obtained from login, refresh, or
+    recovery verify. Include the header:
+
+    `Authorization: Bearer <access_token>`
+
+    ## Encrypted payloads
+
+    `encrypted_data` and `encrypted_item_key` fields are raw bytes serialized as base64 strings
+    in JSON.
+
+    ## Response naming
+
+    Vault domain objects returned directly from vault CRUD endpoints use Go's default JSON field
+    names (PascalCase, e.g. `ID`, `UserID`). Handler-wrapped responses use snake_case
+    (e.g. `access_token`, `vault_item_id`).
+
+  contact:
+    name: Vault API
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8081
+    description: Local development (default PORT=8081)
+
+tags:
+  - name: Health
+    description: Liveness checks
+  - name: Auth
+    description: Signup, login, sessions, and token refresh
+  - name: MFA
+    description: TOTP multi-factor authentication
+  - name: Recovery
+    description: One-time recovery codes
+  - name: Vault
+    description: Encrypted vault item CRUD
+  - name: Sharing
+    description: Share vault items with other users
+  - name: Audit
+    description: Sensitive operation audit trail
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      operationId: getHealth
+      responses:
+        "200":
+          description: Service is running
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok
+
+  /api/v1/auth/signup:
+    post:
+      tags: [Auth]
+      summary: Create account
+      operationId: signup
+      description: Rate limited together with login and refresh.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupRequest"
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignupResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestText"
+        "409":
+          description: Email already registered
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: email already exists
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      operationId: login
+      description: |
+        Returns access and refresh tokens on success. If MFA is enabled and `totp_code` is
+        omitted or empty, returns 401 with `mfa_required: true`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPairResponse"
+        "401":
+          description: Invalid credentials, invalid TOTP, or MFA required
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/MFARequiredResponse"
+                  - type: string
+                    description: Plain-text error for invalid credentials or TOTP
+              examples:
+                mfaRequired:
+                  summary: MFA required
+                  value:
+                    error: mfa required
+                    mfa_required: true
+                invalidCredentials:
+                  summary: Invalid credentials
+                  value: invalid credentials
+        "400":
+          $ref: "#/components/responses/BadRequestText"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: New access token issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessTokenResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestText"
+        "401":
+          $ref: "#/components/responses/UnauthorizedText"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout current session
+      operationId: logout
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Session revoked
+        "401":
+          $ref: "#/components/responses/UnauthorizedText"
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+
+  /api/v1/me:
+    get:
+      tags: [Auth]
+      summary: Get current user ID
+      operationId: getMe
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedText"
+
+  /api/v1/auth/sessions:
+    get:
+      tags: [Auth]
+      summary: List active sessions
+      operationId: listSessions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Active sessions for the current user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Session"
+        "401":
+          $ref: "#/components/responses/UnauthorizedText"
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+
+  /api/v1/auth/sessions/{id}:
+    delete:
+      tags: [Auth]
+      summary: Revoke a session
+      operationId: revokeSession
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "204":
+          description: Session revoked
+        "400":
+          $ref: "#/components/responses/BadRequestText"
+        "401":
+          $ref: "#/components/responses/UnauthorizedText"
+        "404":
+          description: Session not found
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: session not found
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+
+  /api/v1/mfa/enable:
+    post:
+      tags: [MFA]
+      summary: Begin MFA enrollment
+      operationId: enableMFA
+      description: |
+        Generates a TOTP secret. MFA is not active until `/mfa/verify` succeeds with a valid code.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: TOTP setup details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MFASetupResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedText"
+        "409":
+          description: MFA already enabled
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: mfa already enabled
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+
+  /api/v1/mfa/verify:
+    post:
+      tags: [MFA]
+      summary: Confirm MFA enrollment
+      operationId: verifyMFA
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TOTPCodeRequest"
+      responses:
+        "204":
+          description: MFA enabled
+        "400":
+          description: MFA not enabled (no pending secret) or invalid JSON
+          content:
+            text/plain:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/UnauthorizedText"
+        "409":
+          description: MFA already enabled
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: mfa already enabled
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+
+  /api/v1/mfa/disable:
+    post:
+      tags: [MFA]
+      summary: Disable MFA
+      operationId: disableMFA
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TOTPCodeRequest"
+      responses:
+        "204":
+          description: MFA disabled
+        "400":
+          description: MFA not enabled
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: mfa not enabled
+        "401":
+          $ref: "#/components/responses/UnauthorizedText"
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+
+  /api/v1/recovery/generate:
+    post:
+      tags: [Recovery]
+      summary: Generate recovery codes
+      operationId: generateRecoveryCodes
+      description: Requires MFA to be enabled. Replaces any existing unused codes.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Plaintext recovery codes (shown once)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecoveryCodesResponse"
+        "400":
+          description: MFA must be enabled first
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: mfa must be enabled before generating recovery codes
+        "401":
+          $ref: "#/components/responses/UnauthorizedText"
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+
+  /api/v1/recovery/verify:
+    post:
+      tags: [Recovery]
+      summary: Login with recovery code
+      operationId: verifyRecovery
+      description: Bypasses MFA when a valid one-time recovery code is supplied.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecoveryVerifyRequest"
+      responses:
+        "200":
+          description: Login successful; recovery code consumed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPairResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestText"
+        "401":
+          description: Invalid credentials or recovery code
+          content:
+            text/plain:
+              schema:
+                type: string
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+
+  /api/v1/vault/items:
+    get:
+      tags: [Vault]
+      summary: List vault items
+      operationId: listVaultItems
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - name: folder
+          in: query
+          schema:
+            type: string
+          description: Exact folder name filter
+        - name: item_type
+          in: query
+          schema:
+            $ref: "#/components/schemas/VaultItemType"
+          description: Exact item type filter
+        - name: tag
+          in: query
+          schema:
+            type: string
+          description: Items containing this tag
+        - name: title
+          in: query
+          schema:
+            type: string
+          description: Case-insensitive substring match on title
+      responses:
+        "200":
+          description: Paginated vault items owned by the current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VaultItemListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestText"
+        "401":
+          $ref: "#/components/responses/UnauthorizedText"
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+    post:
+      tags: [Vault]
+      summary: Create vault item
+      operationId: createVaultItem
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VaultItemCreateRequest"
+      responses:
+        "201":
+          description: Item created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VaultItem"
+        "400":
+          description: Invalid JSON, missing item_type, or invalid encrypted blob
+          content:
+            text/plain:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/UnauthorizedText"
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+
+  /api/v1/vault/items/{id}:
+    get:
+      tags: [Vault]
+      summary: Get vault item
+      operationId: getVaultItem
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/VaultItemId"
+      responses:
+        "200":
+          description: Vault item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VaultItem"
+        "400":
+          $ref: "#/components/responses/BadRequestText"
+        "401":
+          $ref: "#/components/responses/UnauthorizedText"
+        "404":
+          $ref: "#/components/responses/NotFoundText"
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+    put:
+      tags: [Vault]
+      summary: Update vault item
+      operationId: updateVaultItem
+      description: Optimistic concurrency via `version`; update fails if version is stale.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/VaultItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VaultItemUpdateRequest"
+      responses:
+        "200":
+          description: Updated item (version incremented)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VaultItem"
+        "400":
+          description: Invalid JSON or encrypted blob
+          content:
+            text/plain:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/UnauthorizedText"
+        "404":
+          $ref: "#/components/responses/NotFoundText"
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+    delete:
+      tags: [Vault]
+      summary: Soft delete vault item
+      operationId: deleteVaultItem
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/VaultItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VersionRequest"
+      responses:
+        "200":
+          description: Soft-deleted item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VaultItem"
+        "400":
+          $ref: "#/components/responses/BadRequestText"
+        "401":
+          $ref: "#/components/responses/UnauthorizedText"
+        "404":
+          $ref: "#/components/responses/NotFoundText"
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+
+  /api/v1/vault/items/{id}/restore:
+    post:
+      tags: [Vault]
+      summary: Restore soft-deleted item
+      operationId: restoreVaultItem
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/VaultItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VersionRequest"
+      responses:
+        "200":
+          description: Restored item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VaultItem"
+        "400":
+          $ref: "#/components/responses/BadRequestText"
+        "401":
+          $ref: "#/components/responses/UnauthorizedText"
+        "404":
+          $ref: "#/components/responses/NotFoundText"
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+
+  /api/v1/vault/items/{id}/share:
+    post:
+      tags: [Sharing]
+      summary: Share vault item with another user
+      operationId: shareVaultItem
+      description: |
+        Owner-only. The client must supply an `encrypted_item_key` wrapped for the recipient.
+        The server never sees plaintext vault contents.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/VaultItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShareVaultItemRequest"
+      responses:
+        "201":
+          description: Share created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SharedVaultItemRecord"
+        "400":
+          description: Validation error
+          content:
+            text/plain:
+              schema:
+                type: string
+                examples:
+                  missingEmail:
+                    value: email is required
+                  invalidKey:
+                    value: invalid encrypted item key
+                  invalidPermission:
+                    value: permission must be read or write
+                  selfShare:
+                    value: cannot share item with yourself
+        "401":
+          $ref: "#/components/responses/UnauthorizedText"
+        "404":
+          description: Item or recipient not found
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: item or recipient not found
+        "409":
+          description: Already shared with this user
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: item already shared with user
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+
+  /api/v1/vault/items/{id}/share/{user_id}:
+    delete:
+      tags: [Sharing]
+      summary: Revoke vault item share
+      operationId: revokeVaultShare
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/VaultItemId"
+        - $ref: "#/components/parameters/ShareRecipientUserId"
+      responses:
+        "204":
+          description: Share revoked
+        "400":
+          $ref: "#/components/responses/BadRequestText"
+        "401":
+          $ref: "#/components/responses/UnauthorizedText"
+        "404":
+          description: Share not found
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: share not found
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+
+  /api/v1/vault/shared:
+    get:
+      tags: [Sharing]
+      summary: List items shared with me
+      operationId: listSharedVaultItems
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Paginated shared items including vault metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SharedVaultItemListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestText"
+        "401":
+          $ref: "#/components/responses/UnauthorizedText"
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+
+  /api/v1/audit/logs:
+    get:
+      tags: [Audit]
+      summary: List audit logs
+      operationId: listAuditLogs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          description: Page size (default 50, max 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Audit log entries for the current user, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditLogEntry"
+        "400":
+          $ref: "#/components/responses/BadRequestText"
+        "401":
+          $ref: "#/components/responses/UnauthorizedText"
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token from login, refresh, or recovery verify
+
+  parameters:
+    VaultItemId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    SessionId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ShareRecipientUserId:
+      name: user_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Limit:
+      name: limit
+      in: query
+      description: Page size (default 50, max 100)
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Offset:
+      name: offset
+      in: query
+      description: Number of records to skip
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+
+  responses:
+    BadRequestText:
+      description: Invalid request
+      content:
+        text/plain:
+          schema:
+            type: string
+    UnauthorizedText:
+      description: Missing or invalid access token
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: unauthorized
+    NotFoundText:
+      description: Resource not found
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: item not found
+    InternalErrorText:
+      description: Internal server error
+      content:
+        text/plain:
+          schema:
+            type: string
+    TooManyRequests:
+      description: Rate limit exceeded (auth endpoints)
+      content:
+        text/plain:
+          schema:
+            type: string
+
+  schemas:
+    SignupRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 1
+
+    SignupResponse:
+      type: object
+      required: [id, email]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        device_name:
+          type: string
+          description: Optional label stored on the session
+        totp_code:
+          type: string
+          description: Required when MFA is enabled
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    TokenPairResponse:
+      type: object
+      required: [access_token, refresh_token]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+
+    AccessTokenResponse:
+      type: object
+      required: [access_token]
+      properties:
+        access_token:
+          type: string
+
+    MFARequiredResponse:
+      type: object
+      required: [error, mfa_required]
+      properties:
+        error:
+          type: string
+          example: mfa required
+        mfa_required:
+          type: boolean
+          example: true
+
+    MeResponse:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+          format: uuid
+
+    Session:
+      type: object
+      required: [id, device_name, ip_address, user_agent, created_at, expires_at, is_current]
+      properties:
+        id:
+          type: string
+          format: uuid
+        device_name:
+          type: string
+        ip_address:
+          type: string
+        user_agent:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        is_current:
+          type: boolean
+
+    MFASetupResponse:
+      type: object
+      required: [secret, otpauth_url]
+      properties:
+        secret:
+          type: string
+          description: Base32 TOTP secret (store securely until verified)
+        otpauth_url:
+          type: string
+          format: uri
+          description: otpauth:// URI for authenticator apps
+
+    TOTPCodeRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          description: 6-digit TOTP code
+
+    RecoveryCodesResponse:
+      type: object
+      required: [recovery_codes]
+      properties:
+        recovery_codes:
+          type: array
+          items:
+            type: string
+          minItems: 10
+          maxItems: 10
+          description: Plaintext one-time codes; not retrievable after this response
+
+    RecoveryVerifyRequest:
+      type: object
+      required: [email, password, recovery_code]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        recovery_code:
+          type: string
+        device_name:
+          type: string
+
+    VaultItemType:
+      type: string
+      enum: [login, note, card, identity]
+      description: Item category stored as metadata
+
+    VaultItemCreateRequest:
+      type: object
+      required: [encrypted_data, item_type]
+      properties:
+        encrypted_data:
+          type: string
+          format: byte
+          description: Client-encrypted blob (version byte 0x01 + payload)
+        item_type:
+          $ref: "#/components/schemas/VaultItemType"
+        title:
+          type: string
+        folder:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+
+    VaultItemUpdateRequest:
+      allOf:
+        - $ref: "#/components/schemas/VaultItemCreateRequest"
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+              format: int32
+              description: Current item version for optimistic locking
+
+    VersionRequest:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+          format: int32
+
+    VaultItem:
+      type: object
+      description: |
+        Domain object serialized with Go default JSON names (PascalCase).
+      required:
+        - ID
+        - UserID
+        - EncryptedData
+        - ItemType
+        - Title
+        - Folder
+        - Tags
+        - CreatedAt
+        - UpdatedAt
+        - Version
+      properties:
+        ID:
+          type: string
+          format: uuid
+        UserID:
+          type: string
+          format: uuid
+        EncryptedData:
+          type: string
+          format: byte
+        ItemType:
+          type: string
+        Title:
+          type: string
+        Folder:
+          type: string
+        Tags:
+          type: array
+          items:
+            type: string
+        CreatedAt:
+          type: string
+          format: date-time
+        UpdatedAt:
+          type: string
+          format: date-time
+        DeletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        Version:
+          type: integer
+          format: int32
+
+    VaultItemListResponse:
+      type: object
+      required: [items, total, limit, offset]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/VaultItem"
+        total:
+          type: integer
+          format: int64
+        limit:
+          type: integer
+          format: int32
+        offset:
+          type: integer
+          format: int32
+
+    SharePermission:
+      type: string
+      enum: [read, write]
+
+    ShareVaultItemRequest:
+      type: object
+      required: [email, encrypted_item_key, permission]
+      properties:
+        email:
+          type: string
+          format: email
+          description: Recipient account email
+        encrypted_item_key:
+          type: string
+          format: byte
+          description: Item key encrypted for the recipient
+        permission:
+          $ref: "#/components/schemas/SharePermission"
+
+    SharedVaultItemRecord:
+      type: object
+      description: Share record returned from POST share (PascalCase field names)
+      required:
+        - ID
+        - VaultItemID
+        - OwnerID
+        - SharedWithUserID
+        - EncryptedItemKey
+        - Permission
+        - CreatedAt
+      properties:
+        ID:
+          type: string
+          format: uuid
+        VaultItemID:
+          type: string
+          format: uuid
+        OwnerID:
+          type: string
+          format: uuid
+        SharedWithUserID:
+          type: string
+          format: uuid
+        EncryptedItemKey:
+          type: string
+          format: byte
+        Permission:
+          $ref: "#/components/schemas/SharePermission"
+        CreatedAt:
+          type: string
+          format: date-time
+
+    SharedVaultItemListEntry:
+      type: object
+      required:
+        - id
+        - vault_item_id
+        - owner_id
+        - shared_with_user_id
+        - encrypted_item_key
+        - permission
+        - created_at
+        - item
+      properties:
+        id:
+          type: string
+          format: uuid
+        vault_item_id:
+          type: string
+          format: uuid
+        owner_id:
+          type: string
+          format: uuid
+        shared_with_user_id:
+          type: string
+          format: uuid
+        encrypted_item_key:
+          type: string
+          format: byte
+        permission:
+          $ref: "#/components/schemas/SharePermission"
+        created_at:
+          type: string
+          format: date-time
+        item:
+          $ref: "#/components/schemas/VaultItem"
+
+    SharedVaultItemListResponse:
+      type: object
+      required: [items, total, limit, offset]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SharedVaultItemListEntry"
+        total:
+          type: integer
+          format: int64
+        limit:
+          type: integer
+          format: int32
+        offset:
+          type: integer
+          format: int32
+
+    AuditLogEntry:
+      type: object
+      required: [id, action, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        action:
+          type: string
+          description: |
+            Event type. Known values include:
+            `auth.signup`, `auth.login`, `auth.logout`, `auth.session.revoke`,
+            `vault.item.create`, `vault.item.update`, `vault.item.delete`, `vault.item.restore`,
+            `vault.item.share`, `vault.item.share.revoke`,
+            `mfa.enable`, `mfa.verify`, `mfa.disable`,
+            `recovery.generate`, `recovery.verify`
+        resource_type:
+          type: string
+          example: vault_item
+        resource_id:
+          type: string
+          format: uuid
+          nullable: true
+        ip_address:
+          type: string
+        user_agent:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+          description: JSON object with event-specific details
+        created_at:
+          type: string
+          format: date-time
