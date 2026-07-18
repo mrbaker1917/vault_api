@@ -14,4 +14,5 @@ type SessionRepository interface {
 	Revoke(ctx context.Context, id uuid.UUID) error
 	ListByUserID(ctx context.Context, userID uuid.UUID) ([]domain.Session, error)
 	RevokeByID(ctx context.Context, id, userID uuid.UUID) error
+	RevokeAllExcept(ctx context.Context, userID, exceptSessionID uuid.UUID) error
 }

@@ -15,6 +15,7 @@ type UserRepository interface {
 	EnableMFASecret(ctx context.Context, id uuid.UUID, secret string) error
 	ConfirmMFA(ctx context.Context, id uuid.UUID) error
 	DisableMFA(ctx context.Context, id uuid.UUID) error
+	UpdatePassword(ctx context.Context, id uuid.UUID, passwordHash string) error
 }
 
 var ErrNotFound = errors.New("not found")

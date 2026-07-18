@@ -173,3 +173,21 @@ func (q *Queries) RevokeSession(ctx context.Context, arg RevokeSessionParams) (i
 	}
 	return result.RowsAffected(), nil
 }
+
+const revokeSessionsExcept = `-- name: RevokeSessionsExcept :exec
+UPDATE sessions
+SET revoked_at = NOW()
+WHERE user_id = $1
+  AND id <> $2
+  AND revoked_at IS NULL
+`
+
+type RevokeSessionsExceptParams struct {
+	UserID pgtype.UUID
+	ID     pgtype.UUID
+}
+
+func (q *Queries) RevokeSessionsExcept(ctx context.Context, arg RevokeSessionsExceptParams) error {
+	_, err := q.db.Exec(ctx, revokeSessionsExcept, arg.UserID, arg.ID)
+	return err
+}

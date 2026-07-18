@@ -208,6 +208,16 @@ func (r *sessionPostgresRepository) ListByUserID(ctx context.Context, userID uui
 	return sessions, nil
 }
 
+func (r *sessionPostgresRepository) RevokeAllExcept(ctx context.Context, userID, exceptSessionID uuid.UUID) error {
+	if err := r.q.RevokeSessionsExcept(ctx, sqlc.RevokeSessionsExceptParams{
+		UserID: pgUUIDToPG(userID),
+		ID:     pgUUIDToPG(exceptSessionID),
+	}); err != nil {
+		return fmt.Errorf("revoke sessions except current: %w", err)
+	}
+	return nil
+}
+
 func sessionRowFromListByUserID(r sqlc.ListSessionsByUserIDRow) (sessionRow, error) {
 	id, err := uuidFromPG(r.ID)
 	if err != nil {

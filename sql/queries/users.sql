@@ -21,3 +21,8 @@ UPDATE users SET mfa_enabled = TRUE, updated_at = NOW() WHERE id = $1;
 
 -- name: DisableMFA :exec
 UPDATE users SET mfa_enabled = FALSE, mfa_secret = NULL, updated_at = NOW() WHERE id = $1;
+
+-- name: UpdateUserPassword :execrows
+UPDATE users
+SET password_hash = $2, updated_at = NOW()
+WHERE id = $1;

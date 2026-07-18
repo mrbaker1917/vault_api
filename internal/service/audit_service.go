@@ -15,6 +15,7 @@ const (
 	AuditAuthSignup         = "auth.signup"
 	AuditAuthLogin          = "auth.login"
 	AuditAuthLogout         = "auth.logout"
+	AuditAuthPasswordChange = "auth.password.change"
 	AuditAuthSessionRevoke  = "auth.session.revoke"
 	AuditVaultItemCreate    = "vault.item.create"
 	AuditVaultItemUpdate    = "vault.item.update"

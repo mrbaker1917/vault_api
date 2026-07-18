@@ -46,7 +46,7 @@ The API listens on [http://localhost:8081](http://localhost:8081). Apply migrati
 
 | Area | Details |
 |------|---------|
-| **Auth** | Signup, login, logout, refresh, JWT + DB-backed sessions |
+| **Auth** | Signup, login, logout, refresh, **change password**, JWT + DB-backed sessions |
 | **Sessions** | List and revoke device sessions |
 | **MFA** | TOTP enable / verify / disable |
 | **Recovery** | One-time recovery codes (requires MFA) |
@@ -58,7 +58,7 @@ The API listens on [http://localhost:8081](http://localhost:8081). Apply migrati
 
 ### Planned / not yet implemented
 
-- Password change and vault key re-wrapping API
+- Vault key re-wrapping API (client-driven master password change)
 - Automated purge of soft-deleted items after 30 days
 - Breach-aware password checks (e.g. HIBP)
 - Shared-user `write` permission enforcement on vault updates
@@ -90,7 +90,7 @@ Full contract: [`docs/openapi.yaml`](docs/openapi.yaml) (validated in CI).
 
 | Group | Endpoints |
 |-------|-----------|
-| Auth | `POST /api/v1/auth/signup`, `/login`, `/logout`, `/refresh` · `GET /api/v1/me` · `GET/DELETE /api/v1/auth/sessions` |
+| Auth | `POST /api/v1/auth/signup`, `/login`, `/logout`, `/refresh`, `/change-password` · `GET /api/v1/me` · `GET/DELETE /api/v1/auth/sessions` |
 | MFA | `POST /api/v1/mfa/enable`, `/verify`, `/disable` |
 | Recovery | `POST /api/v1/recovery/generate`, `/verify` |
 | Vault | `POST/GET/PUT/DELETE /api/v1/vault/items` · `POST .../restore` |

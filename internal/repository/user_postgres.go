@@ -174,3 +174,17 @@ func (r *userPostgresRepository) DisableMFA(ctx context.Context, id uuid.UUID) e
 	}
 	return nil
 }
+
+func (r *userPostgresRepository) UpdatePassword(ctx context.Context, id uuid.UUID, passwordHash string) error {
+	rowsAffected, err := r.q.UpdateUserPassword(ctx, sqlc.UpdateUserPasswordParams{
+		ID:           pgUUIDToPG(id),
+		PasswordHash: passwordHash,
+	})
+	if err != nil {
+		return fmt.Errorf("update password: %w", err)
+	}
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}

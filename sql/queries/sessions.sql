@@ -32,3 +32,10 @@ WHERE user_id = $1
   AND revoked_at IS NULL
   AND expires_at > NOW()
 ORDER BY created_at DESC;
+
+-- name: RevokeSessionsExcept :exec
+UPDATE sessions
+SET revoked_at = NOW()
+WHERE user_id = $1
+  AND id <> $2
+  AND revoked_at IS NULL;

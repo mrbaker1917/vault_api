@@ -14,6 +14,7 @@ import (
 
 var ErrInvalidCredentials = errors.New("invalid credentials")
 var ErrEmailAlreadyExists = errors.New("email already exists")
+var ErrPasswordUnchanged = errors.New("new password must differ from current password")
 
 const accessTokenTTL = 15 * time.Minute
 
@@ -204,5 +205,68 @@ func (s *AuthService) RevokeSession(ctx context.Context, sessionID, userID uuid.
 	if s.audit != nil {
 		s.audit.Log(ctx, userID, audit, AuditAuthSessionRevoke, "session", &sessionID, nil)
 	}
+	return nil
+}
+
+func (s *AuthService) ChangePassword(
+	ctx context.Context,
+	userID, sessionID uuid.UUID,
+	currentPassword, newPassword, totpCode string,
+	audit AuditContext,
+) error {
+	currentPassword = strings.TrimSpace(currentPassword)
+	newPassword = strings.TrimSpace(newPassword)
+	if currentPassword == "" || newPassword == "" {
+		return ErrInvalidCredentials
+	}
+	if currentPassword == newPassword {
+		return ErrPasswordUnchanged
+	}
+
+	user, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("get user: %w", err)
+	}
+
+	ok, err := crypto.CheckPasswordHash(currentPassword, user.PasswordHash)
+	if err != nil {
+		return fmt.Errorf("check password hash: %w", err)
+	}
+	if !ok {
+		return ErrInvalidCredentials
+	}
+
+	if user.MfaEnabled {
+		if strings.TrimSpace(totpCode) == "" {
+			return ErrMFARequired
+		}
+		if user.MfaSecret == nil || !crypto.ValidateTOTPCode(*user.MfaSecret, totpCode) {
+			return ErrInvalidTOTPCode
+		}
+	}
+
+	passwordHash, err := crypto.HashPassword(newPassword)
+	if err != nil {
+		return fmt.Errorf("hash password: %w", err)
+	}
+
+	if err := s.users.UpdatePassword(ctx, userID, passwordHash); err != nil {
+		return fmt.Errorf("update password: %w", err)
+	}
+
+	if err := s.sessions.RevokeAllExcept(ctx, userID, sessionID); err != nil {
+		return fmt.Errorf("revoke other sessions: %w", err)
+	}
+
+	if s.audit != nil {
+		uid := userID
+		s.audit.Log(ctx, userID, audit, AuditAuthPasswordChange, "user", &uid, map[string]any{
+			"mfa_used": user.MfaEnabled,
+		})
+	}
+
 	return nil
 }

@@ -105,6 +105,16 @@ func (s *stubUserRepo) EnableMFASecret(_ context.Context, _ uuid.UUID, _ string)
 func (s *stubUserRepo) ConfirmMFA(_ context.Context, _ uuid.UUID) error                { return nil }
 func (s *stubUserRepo) DisableMFA(_ context.Context, _ uuid.UUID) error                { return nil }
 
+func (s *stubUserRepo) UpdatePassword(_ context.Context, id uuid.UUID, passwordHash string) error {
+	user, ok := s.users[id]
+	if !ok {
+		return repository.ErrNotFound
+	}
+	user.PasswordHash = passwordHash
+	s.users[id] = user
+	return nil
+}
+
 func TestVaultServiceShareItem(t *testing.T) {
 	vaultRepo := newStubVaultItemRepo()
 	shareRepo := newStubSharedVaultItemRepo()

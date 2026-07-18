@@ -176,6 +176,61 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	sessionID, ok := middleware.SessionIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		CurrentPassword string `json:"current_password"`
+		NewPassword     string `json:"new_password"`
+		TotpCode        string `json:"totp_code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+
+	err := h.authService.ChangePassword(
+		r.Context(),
+		userID,
+		sessionID,
+		req.CurrentPassword,
+		req.NewPassword,
+		req.TotpCode,
+		auditContextFromRequest(r),
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidCredentials):
+			http.Error(w, "invalid credentials", http.StatusUnauthorized)
+		case errors.Is(err, service.ErrPasswordUnchanged):
+			http.Error(w, "new password must differ from current password", http.StatusBadRequest)
+		case errors.Is(err, service.ErrMFARequired):
+			writeJSON(w, http.StatusUnauthorized, map[string]any{
+				"error":        "mfa required",
+				"mfa_required": true,
+			})
+		case errors.Is(err, service.ErrInvalidTOTPCode):
+			http.Error(w, "invalid totp code", http.StatusUnauthorized)
+		case errors.Is(err, service.ErrNotFound):
+			http.Error(w, "user not found", http.StatusNotFound)
+		default:
+			http.Error(w, "failed to change password", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
 	
 func (h *Handler) ListSessions(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())

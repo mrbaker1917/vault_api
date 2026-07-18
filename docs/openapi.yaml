@@ -223,6 +223,48 @@ paths:
         "500":
           $ref: "#/components/responses/InternalErrorText"
 
+  /api/v1/auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Change account password
+      operationId: changePassword
+      description: |
+        Updates the account password and revokes all other active sessions.
+        When MFA is enabled, `totp_code` is required.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+      responses:
+        "204":
+          description: Password changed; other sessions revoked
+        "400":
+          description: Invalid JSON or new password same as current
+          content:
+            text/plain:
+              schema:
+                type: string
+        "401":
+          description: Invalid current password, invalid TOTP, or MFA required
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/MFARequiredResponse"
+                  - type: string
+        "404":
+          description: User not found
+          content:
+            text/plain:
+              schema:
+                type: string
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+
   /api/v1/me:
     get:
       tags: [Auth]
@@ -886,6 +928,20 @@ components:
         refresh_token:
           type: string
 
+    ChangePasswordRequest:
+      type: object
+      required: [current_password, new_password]
+      properties:
+        current_password:
+          type: string
+          format: password
+        new_password:
+          type: string
+          format: password
+        totp_code:
+          type: string
+          description: Required when MFA is enabled
+
     TokenPairResponse:
       type: object
       required: [access_token, refresh_token]
@@ -1216,7 +1272,7 @@ components:
           type: string
           description: |
             Event type. Known values include:
-            `auth.signup`, `auth.login`, `auth.logout`, `auth.session.revoke`,
+            `auth.signup`, `auth.login`, `auth.logout`, `auth.password.change`, `auth.session.revoke`,
             `vault.item.create`, `vault.item.update`, `vault.item.delete`, `vault.item.restore`,
             `vault.item.share`, `vault.item.share.revoke`,
             `mfa.enable`, `mfa.verify`, `mfa.disable`,

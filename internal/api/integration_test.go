@@ -30,6 +30,53 @@ func TestIntegrationReadyEndpoint(t *testing.T) {
 	}
 }
 
+func TestIntegrationChangePassword(t *testing.T) {
+	handler, cleanup := integration.NewTestRouter(t)
+	defer cleanup()
+
+	email := fmt.Sprintf("pwd-%d@example.com", time.Now().UnixNano())
+	oldPassword := "secure-password-123"
+	newPassword := "new-secure-password-456"
+	token := signupAndLoginWithCredentials(t, handler, email, oldPassword)
+
+	change := integration.DoJSON(t, handler, integration.JSONRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/change-password",
+		Token:  token,
+		Body: map[string]string{
+			"current_password": oldPassword,
+			"new_password":     newPassword,
+		},
+	})
+	if change.Status != http.StatusNoContent {
+		t.Fatalf("change password status = %d, body = %s", change.Status, change.Body)
+	}
+
+	oldLogin := integration.DoJSON(t, handler, integration.JSONRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/login",
+		Body: map[string]string{
+			"email":    email,
+			"password": oldPassword,
+		},
+	})
+	if oldLogin.Status != http.StatusUnauthorized {
+		t.Fatalf("old password login status = %d, body = %s", oldLogin.Status, oldLogin.Body)
+	}
+
+	newLogin := integration.DoJSON(t, handler, integration.JSONRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/login",
+		Body: map[string]string{
+			"email":    email,
+			"password": newPassword,
+		},
+	})
+	if newLogin.Status != http.StatusOK {
+		t.Fatalf("new password login status = %d, body = %s", newLogin.Status, newLogin.Body)
+	}
+}
+
 func TestIntegrationAuthSignupLoginLogout(t *testing.T) {
 	handler, cleanup := integration.NewTestRouter(t)
 	defer cleanup()
