@@ -1,347 +1,170 @@
-# vault_api
+# Vault API
 
-# Vault API: Zero-Knowledge Password Manager Backend
+![Status of tests on this REPO](https://github.com/mrbaker1917/vault_api/actions/workflows/ci.yml/badge.svg)
 
-## Project Overview
+Zero-knowledge password vault backend in Go. The server authenticates users and stores encrypted blobs plus metadata; clients derive keys and encrypt vault contents locally.
 
-Build a secure, production-grade password vault backend in Go that demonstrates cryptographic design, authentication, audit logging, and clean API architecture. The system uses zero-knowledge architecture where the server never sees plaintext secrets.
+**Status:** MVP complete — auth, vault CRUD, MFA, recovery, sharing, audit, metrics, CI, and docs are implemented.
 
-Target audience: Password management companies (e.g., 1Password, Bitwarden, LastPass)
-Tech stack: Go, PostgreSQL, Redis, Docker
-Timeline: 4-6 weeks for MVP
+## Quick start
 
-## Core Features
+### Prerequisites
 
-### Authentication & User Management
+- Go 1.25+
+- PostgreSQL 16+ (or Docker)
+- For integration tests: Docker (testcontainers)
 
-- User signup with email/password
-- Secure login with JWT or session tokens
-- Password hashing with bcrypt or Argon2
-- Multi-factor authentication (TOTP)
-- Device session management
-- Account recovery with recovery codes
+### Local development
 
-### Vault Operations
+```bash
+# Apply migrations to your Postgres instance (goose), then:
+export DATABASE_URL="postgres://vault:vault@localhost:5433/vault_api?sslmode=disable"
+export JWT_SECRET="dev-secret-change-me"
+export PORT=8081
 
-- Create, read, update, delete vault items
-- Client-side encryption with user master key
-- Server stores only encrypted blobs + metadata
-- Search vault items by metadata (tags, titles)
-- Organize items into folders/categories
-- Soft delete with 30-day recovery window
+go run ./cmd/server
+```
 
-### Security Features
+Health checks:
 
-- Zero-knowledge architecture (server never sees plaintext)
-- Per-user encryption keys derived from master password
-- Key re-wrapping for password changes
-- Secure vault item sharing between users
-- Rate limiting on auth endpoints
-- Breach-aware password strength checks
-- Audit log for all sensitive operations
+- `GET /health` — liveness
+- `GET /ready` — readiness (PostgreSQL ping)
+- `GET /metrics` — Prometheus metrics
 
-### Operational Features
+### Docker Compose
 
-- Health check endpoints
-- Structured logging (JSON)
-- Prometheus metrics
-- Request tracing
-- Database migrations
-- Docker Compose deployment
-- CI/CD pipeline with tests
+```bash
+cd docker
+docker compose up --build
+```
 
-## System Architecture
+The API listens on [http://localhost:8081](http://localhost:8081). Apply migrations to Postgres before first use (not automated on startup yet).
 
-### High-Level Flow
+## Features
 
-text
-Client Backend Database
-| | |
-|-- Master Password ----------->| |
-| (derives encryption key) | |
-| | |
-|-- Encrypted Vault Item ------>|-- Store encrypted blob --->|
-| + Metadata | + metadata |
-| | |
-|<-- Encrypted blob ------------|<-- Fetch encrypted data ---|
-| (decrypt client-side) | |
+### Implemented
 
-## Encryption Model
+| Area | Details |
+|------|---------|
+| **Auth** | Signup, login, logout, refresh, JWT + DB-backed sessions |
+| **Sessions** | List and revoke device sessions |
+| **MFA** | TOTP enable / verify / disable |
+| **Recovery** | One-time recovery codes (requires MFA) |
+| **Vault** | CRUD, pagination, filtering, optimistic locking, soft delete / restore |
+| **Sharing** | Share items by email with client-wrapped keys (`read` / `write`) |
+| **Audit** | Append-only log of sensitive operations |
+| **Security** | Argon2id passwords, rate-limited auth, encrypted blob validation |
+| **Ops** | JSON logging, `/health`, `/ready`, Prometheus `/metrics`, Docker, GitHub Actions CI |
 
-- Master Password: User-provided, never sent to server
-- Master Key: Derived from master password using PBKDF2/Argon2
-- Encryption Key: AES-256-GCM key derived from master key
-- Vault Items: Encrypted client-side before transmission
-- Server Storage: Only encrypted blobs + unencrypted metadata (title, tags, created_at)
-- Security Boundaries
-- Server authenticates users but cannot decrypt vault contents
-- Encryption/decryption happens entirely on client
-- Server validates encrypted blob format but not contents
-- Recovery codes are hashed and stored securely
-- Audit logs track who accessed what, when
+### Planned / not yet implemented
 
-## API Endpoints
+- Password change and vault key re-wrapping API
+- Automated purge of soft-deleted items after 30 days
+- Breach-aware password checks (e.g. HIBP)
+- Shared-user `write` permission enforcement on vault updates
+- Redis-backed sessions / distributed rate limiting (Redis is in Compose but unused)
+- Auto-migrations on app startup
+- Demo client (CLI or web) showing client-side encryption
 
-### Authentication
+## Zero-knowledge model
 
-- POST /api/v1/auth/signup - Create new account
-- POST /api/v1/auth/login - Login and receive token
-- POST /api/v1/auth/logout - Revoke current session
-- POST /api/v1/auth/refresh - Refresh auth token
-- GET /api/v1/auth/sessions - List active sessions
-- DELETE /api/v1/auth/sessions/{id} - Revoke specific session
+```
+Client                         Backend                    Database
+  |                               |                            |
+  |-- master password (local)     |                            |
+  |-- encrypt vault item          |                            |
+  |-- POST encrypted blob + meta ->|-- store ciphertext + meta ->|
+  |<- GET encrypted blob + meta --|<-- fetch -------------------|
+  |-- decrypt locally             |                            |
+```
 
-### MFA
+- **Server never sees** the master password or plaintext vault secrets.
+- **Server stores** ciphertext, titles, folders, tags, and item types (metadata enables search without decryption).
+- **Client responsibility** — key derivation, encryption, and share key wrapping. See [Architecture](docs/architecture.md).
 
-- POST /api/v1/mfa/enable - Enable TOTP MFA
-- POST /api/v1/mfa/verify - Verify TOTP code
-- POST /api/v1/mfa/disable - Disable MFA
+Account authentication (Argon2id, MFA, sessions) is separate from vault encryption.
 
-### Recovery
+## API
 
-- POST /api/v1/recovery/generate - Generate recovery codes
-- POST /api/v1/recovery/verify - Use recovery code to login
+Full contract: [`docs/openapi.yaml`](docs/openapi.yaml) (validated in CI).
 
-### Vault Items
+| Group | Endpoints |
+|-------|-----------|
+| Auth | `POST /api/v1/auth/signup`, `/login`, `/logout`, `/refresh` · `GET /api/v1/me` · `GET/DELETE /api/v1/auth/sessions` |
+| MFA | `POST /api/v1/mfa/enable`, `/verify`, `/disable` |
+| Recovery | `POST /api/v1/recovery/generate`, `/verify` |
+| Vault | `POST/GET/PUT/DELETE /api/v1/vault/items` · `POST .../restore` |
+| Sharing | `POST .../share` · `DELETE .../share/{user_id}` · `GET /api/v1/vault/shared` |
+| Audit | `GET /api/v1/audit/logs` |
+| Ops | `GET /health`, `/ready`, `/metrics` |
 
-- POST /api/v1/vault/items - Create vault item
-- GET /api/v1/vault/items - List vault items (with pagination)
-- GET /api/v1/vault/items/{id} - Get single vault item
-- PUT /api/v1/vault/items/{id} - Update vault item
-- DELETE /api/v1/vault/items/{id} - Soft delete vault item
-- POST /api/v1/vault/items/{id}/restore - Restore deleted item
+Protected routes require `Authorization: Bearer <access_token>`.
 
-### Sharing
+## Project structure
 
-- POST /api/v1/vault/items/{id}/share - Share item with user
-- DELETE /api/v1/vault/items/{id}/share/{user_id} - Revoke sharing
-- GET /api/v1/vault/shared - List items shared with me
-
-### Audit
-
-- GET /api/v1/audit/logs - Get audit logs for current user
-
-### Health
-
-- GET /health - Health check
-- GET /metrics - Prometheus metrics
-
-Go Package Structure
-text
-vault-api/
-├── cmd/
-│ └── server/
-│ └── main.go # Entry point
+```
+vault_api/
+├── cmd/server/           # Entry point
 ├── internal/
-│ ├── api/
-│ │ ├── handlers/
-│ │ │ ├── auth.go # Auth handlers
-│ │ │ ├── vault.go # Vault handlers
-│ │ │ ├── mfa.go # MFA handlers
-│ │ │ ├── recovery.go # Recovery handlers
-│ │ │ └── audit.go # Audit handlers
-│ │ ├── middleware/
-│ │ │ ├── auth.go # JWT/session validation
-│ │ │ ├── ratelimit.go # Rate limiting
-│ │ │ ├── logging.go # Request logging
-│ │ │ └── recovery.go # Panic recovery
-│ │ └── router.go # Route setup
-│ ├── domain/
-│ │ ├── user.go # User entity
-│ │ ├── vault_item.go # Vault item entity
-│ │ ├── session.go # Session entity
-│ │ └── audit_log.go # Audit log entity
-│ ├── service/
-│ │ ├── auth_service.go # Auth business logic
-│ │ ├── vault_service.go # Vault business logic
-│ │ ├── mfa_service.go # MFA logic
-│ │ ├── recovery_service.go # Recovery logic
-│ │ └── audit_service.go # Audit logging
-│ ├── repository/
-│ │ ├── user_repo.go # User DB operations
-│ │ ├── vault_repo.go # Vault DB operations
-│ │ ├── session_repo.go # Session DB operations
-│ │ └── audit_repo.go # Audit DB operations
-│ ├── crypto/
-│ │ ├── hash.go # Password hashing
-│ │ ├── token.go # Token generation
-│ │ └── validation.go # Input validation
-│ └── config/
-│ └── config.go # Config management
-├── migrations/
-│ ├── 001_create_users.sql
-│ ├── 002_create_sessions.sql
-│ ├── 003_create_vault_items.sql
-│ └── ...
-├── docker/
-│ ├── Dockerfile
-│ └── docker-compose.yml
-├── .github/
-│ └── workflows/
-│ └── ci.yml # GitHub Actions CI
-├── docs/
-│ ├── architecture.md
-│ ├── threat_model.md
-│ └── openapi.yaml # API spec
-├── go.mod
-├── go.sum
-└── README.md
+│   ├── api/              # Router, handlers, middleware
+│   ├── service/          # Business logic
+│   ├── repository/       # Postgres (pgx + sqlc)
+│   ├── domain/           # Entity types
+│   ├── crypto/           # Hashing, JWT, TOTP, blob validation
+│   └── config/
+├── migrations/           # Goose SQL migrations
+├── sql/queries/          # sqlc query definitions
+├── docker/               # Dockerfile + docker-compose.yml
+├── docs/                 # Architecture, threat model, OpenAPI
+└── .github/workflows/    # CI
+```
 
-## Tech Stack Details
+## Tech stack
 
-### Backend
+| Layer | Choice |
+|-------|--------|
+| Language | Go 1.25 |
+| HTTP | `net/http` (Go 1.22+ routing) |
+| Database | PostgreSQL 17, pgx/v5, sqlc |
+| Migrations | Goose |
+| Password hashing | Argon2id |
+| Auth | JWT (HS256) + refresh tokens (SHA-256 hashed in DB) |
+| MFA | TOTP (pquerna/otp) |
+| Metrics | Prometheus client |
+| Logging | `log/slog` (JSON) |
+| Tests | testcontainers-go (integration), race detector in CI |
 
-- Language: Go 1.22+
-- Router: chi or net/http
-- Database: PostgreSQL 16
-- Cache/Sessions: Redis 7
-- Migrations: golang-migrate or goose
-- DB Driver: pgx/v5
+## Development
 
-### Security
+```bash
+go mod verify
+golangci-lint run ./...
+go test -race ./...
+go test -tags=integration -race ./internal/api/...
+go build -o bin/server ./cmd/server
+```
 
-- Password Hashing: Argon2id or bcrypt
-- Encryption: AES-256-GCM (client-side)
-- JWT: golang-jwt/jwt
-- MFA: TOTP via pquerna/otp
-- Rate Limiting: golang.org/x/time/rate or Redis-based
+CI (`.github/workflows/ci.yml`) runs lint, unit tests, integration tests, OpenAPI validation, and build on every push/PR.
 
-### DevOps
+## Documentation
 
-- Containerization: Docker + Docker Compose
-- CI/CD: GitHub Actions
-- Logging: zerolog or logrus (JSON format)
-- Metrics: Prometheus + Grafana
-- Testing: testify for assertions, testcontainers-go for integration tests
+- [Architecture](docs/architecture.md) — system design, data model, auth and vault flow
+- [Threat model](docs/threat_model.md) — assets, trust boundaries, threats, mitigations
+- [OpenAPI spec](docs/openapi.yaml) — HTTP API contract
 
-## Build Timeline (4-6 weeks)
+## Configuration
 
-### Week 1: Foundation
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `8081` | HTTP listen port |
+| `DATABASE_URL` | local Postgres DSN | PostgreSQL connection string |
+| `JWT_SECRET` | `change-me` | HS256 signing key |
+| `REDIS_URL` | `redis://localhost:6379` | Reserved (not used yet) |
+| `CORS_ALLOWED_ORIGINS` | — | Comma-separated allowed origins |
 
-- Project setup (Go modules, Docker, PostgreSQL)
-- Database schema and migrations
-- User signup/login endpoints
-- Password hashing and JWT auth
-- Basic middleware (logging, CORS, auth)
+## References
 
-### Week 2: Vault Core
-
-- Vault item CRUD endpoints
-- Session management
-- Soft delete and restore
-- Pagination and filtering
-- Integration tests for vault operations
-
-### Week 3: Security Features
-
-- MFA (TOTP) implementation
-- Recovery codes
-- Rate limiting
-- Audit logging
-- Encrypted blob validation
-
-### Week 4: Sharing & Advanced
-
-- Vault item sharing between users
-- Key re-wrapping for password changes
-- Breach-aware password checks
-- OpenAPI documentation
-- More comprehensive tests
-
-### Week 5: Operations & Polish
-
-- Prometheus metrics
-- Health checks and readiness probes
-- CI/CD pipeline
-- Docker Compose for local dev
-- README, architecture docs, threat model
-
-### Week 6 (Optional): Demo Client
-
-- Simple CLI or web client
-- Demonstrates client-side encryption
-- Shows key derivation from master password
-- End-to-end flow demo
-
-### What Makes This Project Stand Out
-
-1. Security-First Design
-   Zero-knowledge architecture
-   Threat model documentation
-   Proper cryptographic hygiene
-   Audit logging
-2. Production-Ready
-   Dockerized deployment
-   CI/CD pipeline
-   Structured logging and metrics
-   Database migrations
-3. Clean Architecture
-   Clear separation of concerns (handlers, services, repositories)
-   Dependency injection
-   Testable design
-   OpenAPI spec
-4. Domain Relevance
-   Directly applicable to password management companies
-   Shows understanding of security boundaries
-   Demonstrates backend engineering maturity
-5. Documentation
-   Architecture diagrams
-   Threat model
-   API documentation
-   Deployment guide
-   Design decision explanations
-
-### Threat Model (Key Points)
-
-#### Threats Mitigated
-- Server compromise: Server cannot decrypt vault contents
-- MITM attacks: TLS required, encrypted payloads
-- Brute force: Rate limiting, strong password requirements
-- Session hijacking: Secure token storage, device tracking
-- Account takeover: MFA, recovery codes, audit logs
-#### Threats Out of Scope
-- Client-side malware (assumes trusted client)
-- Physical device compromise
-- Social engineering of recovery codes
-- Quantum computing attacks on encryption
-#### Security Assumptions
-- Users choose strong master passwords
-- Clients properly implement encryption
-- TLS properly configured
-- Server infrastructure is hardened
-
-### Success Metrics
-
-#### For Interviews
-- Clear explanation of zero-knowledge architecture
-- Ability to walk through threat model
-- Discussion of trade-offs (security vs. UX vs. performance)
-- Demonstration of production-ready code
-#### Technical Metrics
-- 80%+ test coverage
-- Sub-100ms p95 latency for vault operations
-- Clean CI pipeline (linting, tests pass)
-- Working Docker deployment
-- Complete OpenAPI documentation
-
-### Next Steps
-
-- Set up repository with Go modules and Docker
-- Implement auth flow (signup, login, sessions)
-- Build vault CRUD with encrypted storage
-- Add security features (MFA, recovery, audit logs)
-- Polish operations (metrics, CI/CD, docs)
-- Create demo (CLI or web client showing encryption)
-
-### Documentation
-
-- [Architecture](docs/architecture.md) — system design, data model, auth and zero-knowledge vault flow
-- [Threat model](docs/threat_model.md) — assets, trust boundaries, threats, mitigations, and trade-offs
-- [OpenAPI spec](docs/openapi.yaml) — HTTP API contract (validated in CI)
-
-### Additional Resources
-
-Zero-knowledge architecture: https://bitwarden.com/help/bitwarden-security-white-paper/
-Go project layout: https://github.com/golang-standards/project-layout
-Secure password storage: OWASP Password Storage Cheat Sheet
-TOTP specification: RFC 6238
+- [Bitwarden Security White Paper](https://bitwarden.com/help/bitwarden-security-white-paper/) — zero-knowledge design patterns
+- [Go project layout](https://github.com/golang-standards/project-layout)
+- [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)
+- [RFC 6238 — TOTP](https://datatracker.ietf.org/doc/html/rfc6238)
