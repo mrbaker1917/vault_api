@@ -35,7 +35,7 @@ servers:
 
 tags:
   - name: Health
-    description: Liveness checks
+    description: Liveness, readiness, and metrics
   - name: Auth
     description: Signup, login, sessions, and token refresh
   - name: MFA
@@ -63,6 +63,44 @@ paths:
               schema:
                 type: string
                 example: ok
+
+  /ready:
+    get:
+      tags: [Health]
+      summary: Readiness check
+      operationId: getReady
+      description: Verifies PostgreSQL connectivity. Returns 503 when the database is unavailable.
+      responses:
+        "200":
+          description: Service is ready to accept traffic
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok
+        "503":
+          description: Database unavailable
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: database unavailable
+
+  /metrics:
+    get:
+      tags: [Health]
+      summary: Prometheus metrics
+      operationId: getMetrics
+      description: |
+        Exposes Prometheus metrics including `vault_api_http_requests_total` and
+        `vault_api_http_request_duration_seconds`.
+      responses:
+        "200":
+          description: Prometheus text exposition format
+          content:
+            text/plain:
+              schema:
+                type: string
 
   /api/v1/auth/signup:
     post:

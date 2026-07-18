@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strings"
 	"testing"
 
 	"vault_api/internal/api"
@@ -65,6 +66,38 @@ func TestHealthEndpointReturnsOK(t *testing.T) {
 	}
 	if rec.Body.String() != "ok" {
 		t.Fatalf("expected body %q, got %q", "ok", rec.Body.String())
+	}
+}
+
+func TestReadyEndpointReturnsServiceUnavailableWithoutDatabase(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+	rec := httptest.NewRecorder()
+
+	api.NewRouter(api.Deps{
+		JWTSecret: "test-secret",
+	}).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected status %d, got %d", http.StatusServiceUnavailable, rec.Code)
+	}
+}
+
+func TestMetricsEndpointReturnsPrometheusMetrics(t *testing.T) {
+	handler := api.NewRouter(api.Deps{JWTSecret: "test-secret"})
+
+	healthReq := httptest.NewRequest(http.MethodGet, "/health", nil)
+	healthRec := httptest.NewRecorder()
+	handler.ServeHTTP(healthRec, healthReq)
+
+	metricsReq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	metricsRec := httptest.NewRecorder()
+	handler.ServeHTTP(metricsRec, metricsReq)
+
+	if metricsRec.Code != http.StatusOK {
+		t.Fatalf("expected metrics status %d, got %d", http.StatusOK, metricsRec.Code)
+	}
+	if !strings.Contains(metricsRec.Body.String(), "vault_api_http_requests_total") {
+		t.Fatalf("expected request counter metric, got %q", metricsRec.Body.String())
 	}
 }
 

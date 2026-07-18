@@ -355,8 +355,8 @@ Run migrations against Postgres before or during deploy (not automated on app st
 |---------|--------|
 | Structured JSON request logs (`slog`) | Implemented |
 | `GET /health` | Implemented (liveness only, no DB check) |
-| `GET /ready` / DB readiness | Not implemented |
-| Prometheus `/metrics` | Not implemented |
+| `GET /ready` | Implemented (PostgreSQL ping) |
+| Prometheus `GET /metrics` | Implemented |
 | Distributed tracing | Not implemented |
 
 ---

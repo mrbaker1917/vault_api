@@ -359,7 +359,7 @@ Priority follow-ups for production:
 7. **Secrets management** — Vault/KMS for `JWT_SECRET`; never default dev secret
 8. **Enforce share write permission** — Allow shared `write` users to update items
 9. **Password change + key re-wrap API** — Client-driven vault key rotation
-10. **Prometheus + alerting** — Rate limit hits, auth failures, audit write errors
+10. **Prometheus + alerting** — Rate limit hits, auth failures, audit write errors (metrics endpoint exists; alerting not wired)
 
 ---
 

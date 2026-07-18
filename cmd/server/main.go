@@ -54,6 +54,7 @@ func main() {
 				JWTSecret:          cfg.JWTSecret,
 				VaultItems:         repository.NewVaultItemRepository(pg),
 				SharedVaultItems:   repository.NewSharedVaultItemRepository(pg),
+				DB:                 pg,
 				CORSAllowedOrigins: cfg.CORSAllowedOrigins,
 			}, nil
 		},

@@ -70,6 +70,7 @@ func NewTestRouter(t *testing.T) (http.Handler, func()) {
 		JWTSecret:        testJWTSecret,
 		VaultItems:       repository.NewVaultItemRepository(pg),
 		SharedVaultItems: repository.NewSharedVaultItemRepository(pg),
+		DB:               pg,
 	}
 
 	cleanup := func() {

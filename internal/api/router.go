@@ -6,6 +6,8 @@ import (
 	"vault_api/internal/api/handlers"
 	"vault_api/internal/repository"
 	"vault_api/internal/api/middleware"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Deps struct {
@@ -16,15 +18,15 @@ type Deps struct {
 	JWTSecret          string
 	VaultItems         repository.VaultItemRepository
 	SharedVaultItems   repository.SharedVaultItemRepository
+	DB                 DBPing
 	CORSAllowedOrigins []string
 }
 
 func NewRouter(deps Deps) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
-	})
+	mux.HandleFunc("GET /health", healthHandler())
+	mux.HandleFunc("GET /ready", readyHandler(deps.DB))
+	mux.Handle("GET /metrics", promhttp.Handler())
 	audit := service.NewAuditService(deps.AuditLogs)
 	auth := service.NewAuthService(deps.Users, deps.Sessions, deps.JWTSecret, audit)
 	vault := service.NewVaultService(deps.VaultItems, deps.SharedVaultItems, deps.Users, audit)
@@ -56,6 +58,7 @@ func NewRouter(deps Deps) http.Handler {
 
 	return middleware.Chain(mux,
 		middleware.Recover,
+		middleware.Metrics,
 		middleware.LogRequests,
 		middleware.CORS(deps.CORSAllowedOrigins),
 		middleware.AuthRateLimit,

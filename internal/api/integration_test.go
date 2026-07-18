@@ -14,6 +14,22 @@ import (
 	"vault_api/internal/testutil/integration"
 )
 
+func TestIntegrationReadyEndpoint(t *testing.T) {
+	handler, cleanup := integration.NewTestRouter(t)
+	defer cleanup()
+
+	ready := integration.DoJSON(t, handler, integration.JSONRequest{
+		Method: http.MethodGet,
+		Path:   "/ready",
+	})
+	if ready.Status != http.StatusOK {
+		t.Fatalf("ready status = %d, body = %s", ready.Status, ready.Body)
+	}
+	if string(ready.Body) != "ok" {
+		t.Fatalf("expected ready body ok, got %q", ready.Body)
+	}
+}
+
 func TestIntegrationAuthSignupLoginLogout(t *testing.T) {
 	handler, cleanup := integration.NewTestRouter(t)
 	defer cleanup()
