@@ -1,11 +1,14 @@
 import { Link, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { useVault } from '../auth/VaultContext'
 
 export function AppLayout() {
   const { user, logout } = useAuth()
+  const { unlocked, lock } = useVault()
   const navigate = useNavigate()
 
   async function handleLogout() {
+    lock()
     await logout()
     navigate('/login')
   }
@@ -19,6 +22,15 @@ export function AppLayout() {
           </Link>
           <div className="flex items-center gap-4 text-sm text-slate-300">
             <span className="hidden font-mono sm:inline">{user?.id}</span>
+            {unlocked && (
+              <button
+                type="button"
+                onClick={lock}
+                className="rounded-md border border-slate-700 px-3 py-1.5 hover:bg-slate-800"
+              >
+                Lock vault
+              </button>
+            )}
             <button
               type="button"
               onClick={() => void handleLogout()}

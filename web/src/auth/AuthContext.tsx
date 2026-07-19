@@ -9,6 +9,8 @@ import {
 } from 'react'
 import { ApiError } from '../api/client'
 import * as authApi from '../api/auth'
+import { createAndStoreSalt } from '../crypto/salt'
+import { createVerifier } from '../crypto/verifier'
 import { clearTokens, getAccessToken } from './tokens'
 
 type User = {
@@ -19,7 +21,7 @@ type AuthContextValue = {
   user: User | null
   loading: boolean
   login: (email: string, password: string, totpCode?: string) => Promise<void>
-  signup: (email: string, password: string) => Promise<void>
+  signup: (email: string, password: string, masterPassword?: string) => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -57,10 +59,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser({ id: me.id })
   }, [])
 
-  const signup = useCallback(async (email: string, password: string) => {
+  const signup = useCallback(async (email: string, password: string, masterPassword?: string) => {
     await authApi.signup(email, password)
     await authApi.login(email, password)
     const me = await authApi.fetchMe()
+    if (masterPassword) {
+      createAndStoreSalt(me.id)
+      await createVerifier(me.id, masterPassword)
+    }
     setUser({ id: me.id })
   }, [])
 

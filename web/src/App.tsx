@@ -1,10 +1,12 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthContext'
+import { VaultProvider } from './auth/VaultContext'
 import { AppLayout } from './components/AppLayout'
 import { ProtectedRoute } from './components/ProtectedRoute'
-import { DashboardPage } from './pages/DashboardPage'
+import { VaultUnlockGate } from './components/VaultUnlockGate'
 import { LoginPage } from './pages/LoginPage'
 import { SignupPage } from './pages/SignupPage'
+import { VaultPage } from './pages/VaultPage'
 
 export default function App() {
   return (
@@ -14,8 +16,21 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route element={<ProtectedRoute />}>
-            <Route element={<AppLayout />}>
-              <Route path="/" element={<DashboardPage />} />
+            <Route
+              element={
+                <VaultProvider>
+                  <AppLayout />
+                </VaultProvider>
+              }
+            >
+              <Route
+                path="/"
+                element={
+                  <VaultUnlockGate>
+                    <VaultPage />
+                  </VaultUnlockGate>
+                }
+              />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
