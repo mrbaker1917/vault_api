@@ -18,10 +18,20 @@ type Config struct {
 func Load() Config {
 	return Config{
 		Port:               envOrDefault("PORT", "8081"),
-		DatabaseURL:        envOrDefault("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/vault_api?sslmode=disable"),
+		DatabaseURL:        envOrDefault("DATABASE_URL", "postgres://vault:vault@localhost:5433/vault_api?sslmode=disable"),
 		RedisURL:           envOrDefault("REDIS_URL", "redis://localhost:6379"),
 		JWTSecret:          envOrDefault("JWT_SECRET", "change-me"),
-		CORSAllowedOrigins: splitCSV(os.Getenv("CORS_ALLOWED_ORIGINS")),
+		CORSAllowedOrigins: corsAllowedOrigins(),
+	}
+}
+
+func corsAllowedOrigins() []string {
+	if value := strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGINS")); value != "" {
+		return splitCSV(value)
+	}
+	return []string{
+		"http://localhost:5173",
+		"http://127.0.0.1:5173",
 	}
 }
 

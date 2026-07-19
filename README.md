@@ -40,6 +40,17 @@ docker compose up --build
 
 The API listens on [http://localhost:8081](http://localhost:8081). Apply migrations to Postgres before first use (not automated on startup yet).
 
+### Web frontend
+
+```bash
+cd web
+cp .env.example .env
+npm install
+npm run dev
+```
+
+The React app runs at [http://localhost:5173](http://localhost:5173). See [web/README.md](web/README.md).
+
 ## Features
 
 ### Implemented
@@ -55,6 +66,7 @@ The API listens on [http://localhost:8081](http://localhost:8081). Apply migrati
 | **Audit** | Append-only log of sensitive operations |
 | **Security** | Argon2id passwords, rate-limited auth, encrypted blob validation |
 | **Ops** | JSON logging, `/health`, `/ready`, Prometheus `/metrics`, Docker, GitHub Actions CI |
+| **Web UI** | React app in `web/` — signup, login, MFA prompt, token refresh (Phase 1) |
 
 ### Planned / not yet implemented
 

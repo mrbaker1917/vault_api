@@ -1,0 +1,37 @@
+import { Link, Outlet, useNavigate } from 'react-router-dom'
+import { useAuth } from '../auth/AuthContext'
+
+export function AppLayout() {
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
+
+  async function handleLogout() {
+    await logout()
+    navigate('/login')
+  }
+
+  return (
+    <div className="min-h-screen">
+      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
+          <Link to="/" className="text-lg font-semibold text-emerald-400">
+            Vault
+          </Link>
+          <div className="flex items-center gap-4 text-sm text-slate-300">
+            <span className="hidden font-mono sm:inline">{user?.id}</span>
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              className="rounded-md border border-slate-700 px-3 py-1.5 hover:bg-slate-800"
+            >
+              Log out
+            </button>
+          </div>
+        </div>
+      </header>
+      <main className="mx-auto max-w-5xl px-4 py-8">
+        <Outlet />
+      </main>
+    </div>
+  )
+}
