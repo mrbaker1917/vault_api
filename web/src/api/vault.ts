@@ -27,6 +27,18 @@ export async function listVaultItems(params?: {
   return apiJson<VaultItemListResponse>(`/api/v1/vault/items${suffix}`)
 }
 
+export async function listDeletedVaultItems(params?: {
+  limit?: number
+  offset?: number
+}): Promise<VaultItemListResponse> {
+  const query = new URLSearchParams()
+  if (params?.limit != null) query.set('limit', String(params.limit))
+  if (params?.offset != null) query.set('offset', String(params.offset))
+
+  const suffix = query.size > 0 ? `?${query.toString()}` : ''
+  return apiJson<VaultItemListResponse>(`/api/v1/vault/items/deleted${suffix}`)
+}
+
 export async function getVaultItem(id: string): Promise<VaultItem> {
   return apiJson<VaultItem>(`/api/v1/vault/items/${id}`)
 }

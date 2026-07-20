@@ -62,3 +62,17 @@ WHERE id = $1
   AND version = $2
   AND user_id = $3
 RETURNING id, user_id, encrypted_data, item_type, title, folder, tags, created_at, updated_at, deleted_at, version;
+
+-- name: ListDeletedVaultItemsByUserID :many
+SELECT id, user_id, encrypted_data, item_type, title, folder, tags, created_at, updated_at, deleted_at, version
+FROM vault_items
+WHERE user_id = $1
+  AND deleted_at IS NOT NULL
+ORDER BY deleted_at DESC
+LIMIT $2 OFFSET $3;
+
+-- name: CountDeletedVaultItemsByUserID :one
+SELECT COUNT(*)
+FROM vault_items
+WHERE user_id = $1
+  AND deleted_at IS NOT NULL;

@@ -5,6 +5,8 @@ import { AppLayout } from './components/AppLayout'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { VaultUnlockGate } from './components/VaultUnlockGate'
 import { LoginPage } from './pages/LoginPage'
+import { AuditLogPage } from './pages/AuditLogPage'
+import { TrashPage } from './pages/TrashPage'
 import { RecoveryLoginPage } from './pages/RecoveryLoginPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { SignupPage } from './pages/SignupPage'
@@ -27,6 +29,8 @@ export default function App() {
               }
             >
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/audit" element={<AuditLogPage />} />
+              <Route path="/trash" element={<TrashPage />} />
               <Route
                 path="/"
                 element={

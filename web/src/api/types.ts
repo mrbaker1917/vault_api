@@ -74,3 +74,14 @@ export type MFASetupResponse = {
 export type RecoveryCodesResponse = {
   recovery_codes: string[]
 }
+
+export type AuditLogEntry = {
+  id: string
+  action: string
+  resource_type?: string
+  resource_id?: string | null
+  ip_address?: string
+  user_agent?: string
+  metadata?: unknown
+  created_at: string
+}

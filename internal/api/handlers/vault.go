@@ -88,6 +88,37 @@ func (h *Handler) ListItems(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *Handler) ListDeletedItems(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	filter, err := parseVaultListFilter(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	result, err := h.vaultService.ListDeletedItems(r.Context(), userID, filter.Limit, filter.Offset)
+	if err != nil {
+		http.Error(w, "failed to list deleted items", http.StatusInternalServerError)
+		return
+	}
+
+	if len(result.Items) == 0 {
+		result.Items = []domain.VaultItem{}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":  result.Items,
+		"total":  result.Total,
+		"limit":  result.Limit,
+		"offset": result.Offset,
+	})
+}
+
 func (h *Handler) GetItem(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {

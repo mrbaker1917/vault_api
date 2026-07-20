@@ -272,6 +272,29 @@ func TestIntegrationVaultCRUD(t *testing.T) {
 		t.Fatalf("get after delete status = %d, body = %s", getAfterDelete.Status, getAfterDelete.Body)
 	}
 
+	listDeleted := integration.DoJSON(t, handler, integration.JSONRequest{
+		Method: http.MethodGet,
+		Path:   "/api/v1/vault/items/deleted",
+		Token:  token,
+	})
+	if listDeleted.Status != http.StatusOK {
+		t.Fatalf("list deleted status = %d, body = %s", listDeleted.Status, listDeleted.Body)
+	}
+	var deletedList struct {
+		Items []struct {
+			ID    string `json:"ID"`
+			Title string `json:"Title"`
+		} `json:"items"`
+		Total int64 `json:"total"`
+	}
+	integration.DecodeJSON(t, listDeleted, &deletedList)
+	if deletedList.Total != 1 || len(deletedList.Items) != 1 {
+		t.Fatalf("expected 1 deleted item, got total=%d items=%d", deletedList.Total, len(deletedList.Items))
+	}
+	if deletedList.Items[0].ID != item.ID {
+		t.Fatalf("expected deleted item id %s, got %s", item.ID, deletedList.Items[0].ID)
+	}
+
 	restore := integration.DoJSON(t, handler, integration.JSONRequest{
 		Method: http.MethodPost,
 		Path:   "/api/v1/vault/items/" + item.ID + "/restore",

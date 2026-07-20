@@ -63,6 +63,28 @@ func (s *stubVaultItemRepo) ListByUserID(_ context.Context, userID uuid.UUID, fi
 	}, nil
 }
 
+func (s *stubVaultItemRepo) ListDeletedByUserID(_ context.Context, userID uuid.UUID, limit, offset int32) (repository.ListVaultItemsResult, error) {
+	items := make([]domain.VaultItem, 0)
+	for _, item := range s.items {
+		if item.UserID != userID || item.DeletedAt == nil {
+			continue
+		}
+		items = append(items, item)
+	}
+	total := int64(len(items))
+	if offset >= int32(len(items)) {
+		return repository.ListVaultItemsResult{Items: []domain.VaultItem{}, Total: total}, nil
+	}
+	end := int(offset + limit)
+	if end > len(items) {
+		end = len(items)
+	}
+	return repository.ListVaultItemsResult{
+		Items: items[offset:end],
+		Total: total,
+	}, nil
+}
+
 func (s *stubVaultItemRepo) Update(_ context.Context, item domain.VaultItem) (domain.VaultItem, error) {
 	existing, ok := s.items[item.ID]
 	if !ok || existing.DeletedAt != nil || existing.Version != item.Version {

@@ -11,6 +11,20 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countDeletedVaultItemsByUserID = `-- name: CountDeletedVaultItemsByUserID :one
+SELECT COUNT(*)
+FROM vault_items
+WHERE user_id = $1
+  AND deleted_at IS NOT NULL
+`
+
+func (q *Queries) CountDeletedVaultItemsByUserID(ctx context.Context, userID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countDeletedVaultItemsByUserID, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countVaultItemsFiltered = `-- name: CountVaultItemsFiltered :one
 SELECT COUNT(*)
 FROM vault_items
@@ -147,6 +161,53 @@ func (q *Queries) GetVaultItemByID(ctx context.Context, id pgtype.UUID) (VaultIt
 		&i.Version,
 	)
 	return i, err
+}
+
+const listDeletedVaultItemsByUserID = `-- name: ListDeletedVaultItemsByUserID :many
+SELECT id, user_id, encrypted_data, item_type, title, folder, tags, created_at, updated_at, deleted_at, version
+FROM vault_items
+WHERE user_id = $1
+  AND deleted_at IS NOT NULL
+ORDER BY deleted_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListDeletedVaultItemsByUserIDParams struct {
+	UserID pgtype.UUID
+	Limit  int32
+	Offset int32
+}
+
+func (q *Queries) ListDeletedVaultItemsByUserID(ctx context.Context, arg ListDeletedVaultItemsByUserIDParams) ([]VaultItem, error) {
+	rows, err := q.db.Query(ctx, listDeletedVaultItemsByUserID, arg.UserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []VaultItem
+	for rows.Next() {
+		var i VaultItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.EncryptedData,
+			&i.ItemType,
+			&i.Title,
+			&i.Folder,
+			&i.Tags,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.Version,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listVaultItemsByUserID = `-- name: ListVaultItemsByUserID :many

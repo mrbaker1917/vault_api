@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useCallback, useEffect, useState } from 'react'
 import * as vaultApi from '../api/vault'
 import type { VaultItem } from '../api/types'
@@ -118,6 +119,14 @@ export function VaultPage() {
           Add item
         </button>
       </div>
+
+      <p className="text-sm text-slate-500">
+        Deleted items can be restored from{' '}
+        <Link to="/trash" className="text-emerald-400 hover:underline">
+          Trash
+        </Link>
+        .
+      </p>
 
       <div className="flex gap-3">
         <input

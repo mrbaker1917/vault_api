@@ -66,7 +66,7 @@ The React app runs at [http://localhost:5173](http://localhost:5173). See [web/R
 | **Audit** | Append-only log of sensitive operations |
 | **Security** | Argon2id passwords, rate-limited auth, encrypted blob validation |
 | **Ops** | JSON logging, `/health`, `/ready`, Prometheus `/metrics`, Docker, GitHub Actions CI |
-| **Web UI** | React app in `web/` — auth, encrypted vault CRUD, MFA, recovery, sessions, settings |
+| **Web UI** | React app in `web/` — auth, encrypted vault CRUD, MFA, recovery, sessions, settings, audit log, trash restore |
 
 ### Planned / not yet implemented
 
@@ -105,7 +105,7 @@ Full contract: [`docs/openapi.yaml`](docs/openapi.yaml) (validated in CI).
 | Auth | `POST /api/v1/auth/signup`, `/login`, `/logout`, `/refresh`, `/change-password` · `GET /api/v1/me` · `GET/DELETE /api/v1/auth/sessions` |
 | MFA | `POST /api/v1/mfa/enable`, `/verify`, `/disable` |
 | Recovery | `POST /api/v1/recovery/generate`, `/verify` |
-| Vault | `POST/GET/PUT/DELETE /api/v1/vault/items` · `POST .../restore` |
+| Vault | `POST/GET/PUT/DELETE /api/v1/vault/items` · `GET /api/v1/vault/items/deleted` · `POST .../restore` |
 | Sharing | `POST .../share` · `DELETE .../share/{user_id}` · `GET /api/v1/vault/shared` |
 | Audit | `GET /api/v1/audit/logs` |
 | Ops | `GET /health`, `/ready`, `/metrics` |

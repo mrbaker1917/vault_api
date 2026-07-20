@@ -60,6 +60,22 @@ Metadata (`title`, `folder`, `tags`, `item_type`) is stored in plaintext on the 
 
 Settings are at `/settings` and do not require vault unlock.
 
-## Next (Phase 4)
+## Phase 4 — Audit, trash, deploy
 
-- Audit log viewer, soft-delete restore UI, deploy polish
+- **Audit log** at `/audit` — paginated activity from `GET /api/v1/audit/logs`
+- **Trash** at `/trash` — list soft-deleted items and restore them (no vault unlock required)
+- New API: `GET /api/v1/vault/items/deleted`
+
+### Production build
+
+```bash
+npm run build
+```
+
+Serve the `dist/` folder with any static host. Set the API URL at build time:
+
+```bash
+VITE_API_URL=https://api.example.com npm run build
+```
+
+Ensure the API allows your frontend origin via `CORS_ALLOWED_ORIGINS`.

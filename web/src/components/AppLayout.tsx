@@ -27,6 +27,12 @@ export function AppLayout() {
             <Link to="/settings" className="text-slate-300 hover:text-white">
               Settings
             </Link>
+            <Link to="/trash" className="text-slate-300 hover:text-white">
+              Trash
+            </Link>
+            <Link to="/audit" className="text-slate-300 hover:text-white">
+              Audit
+            </Link>
           </nav>
           <div className="flex items-center gap-4 text-sm text-slate-300">
             <span className="hidden font-mono sm:inline">{user?.id}</span>

@@ -549,6 +549,30 @@ paths:
         "500":
           $ref: "#/components/responses/InternalErrorText"
 
+  /api/v1/vault/items/deleted:
+    get:
+      tags: [Vault]
+      summary: List soft-deleted vault items
+      operationId: listDeletedVaultItems
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Paginated soft-deleted vault items owned by the current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VaultItemListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestText"
+        "401":
+          $ref: "#/components/responses/UnauthorizedText"
+        "500":
+          $ref: "#/components/responses/InternalErrorText"
+
   /api/v1/vault/items/{id}:
     get:
       tags: [Vault]

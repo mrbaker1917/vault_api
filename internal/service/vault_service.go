@@ -139,6 +139,30 @@ func (s *VaultService) ListItems(ctx context.Context, userID uuid.UUID, filter L
 	}, nil
 }
 
+func (s *VaultService) ListDeletedItems(ctx context.Context, userID uuid.UUID, limit, offset int32) (ListVaultItemsResult, error) {
+	if limit <= 0 {
+		limit = defaultVaultListLimit
+	}
+	if limit > maxVaultListLimit {
+		limit = maxVaultListLimit
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	result, err := s.vaultItems.ListDeletedByUserID(ctx, userID, limit, offset)
+	if err != nil {
+		return ListVaultItemsResult{}, fmt.Errorf("list deleted vault items: %w", err)
+	}
+
+	return ListVaultItemsResult{
+		Items:  result.Items,
+		Total:  result.Total,
+		Limit:  limit,
+		Offset: offset,
+	}, nil
+}
+
 type UpdateVaultItemInput struct {
 	EncryptedData []byte
 	ItemType      string

@@ -101,6 +101,37 @@ func (r *vaultItemPostgresRepository) ListByUserID(ctx context.Context, userID u
 	}, nil
 }
 
+func (r *vaultItemPostgresRepository) ListDeletedByUserID(ctx context.Context, userID uuid.UUID, limit, offset int32) (ListVaultItemsResult, error) {
+	userPG := pgUUIDToPG(userID)
+	total, err := r.q.CountDeletedVaultItemsByUserID(ctx, userPG)
+	if err != nil {
+		return ListVaultItemsResult{}, fmt.Errorf("count deleted vault items: %w", err)
+	}
+
+	rows, err := r.q.ListDeletedVaultItemsByUserID(ctx, sqlc.ListDeletedVaultItemsByUserIDParams{
+		UserID: userPG,
+		Limit:  limit,
+		Offset: offset,
+	})
+	if err != nil {
+		return ListVaultItemsResult{}, fmt.Errorf("list deleted vault items: %w", err)
+	}
+
+	items := make([]domain.VaultItem, 0, len(rows))
+	for _, row := range rows {
+		vaultItemRow, err := vaultItemRowFromSQLC(row)
+		if err != nil {
+			return ListVaultItemsResult{}, fmt.Errorf("list deleted vault items: %w", err)
+		}
+		items = append(items, toDomainVaultItem(vaultItemRow))
+	}
+
+	return ListVaultItemsResult{
+		Items: items,
+		Total: total,
+	}, nil
+}
+
 type vaultItemRow struct {
 	id            uuid.UUID
 	userID        uuid.UUID
