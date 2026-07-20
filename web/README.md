@@ -46,6 +46,7 @@ The API allows CORS from `http://localhost:5173` and `http://127.0.0.1:5173` by 
 - Encrypted blob format: `[0x01 version][12-byte IV][ciphertext]` (matches API validation)
 - Vault unlock / lock flow with local salt + verifier in `localStorage`
 - Vault item list, create, edit, delete (login, note, card, identity types)
+- **Detail view** — read-only item screen with copy buttons, show/hide secrets, and open URL for logins
 - Optimistic locking via `version` on update/delete
 
 Metadata (`title`, `folder`, `tags`, `item_type`) is stored in plaintext on the server for search and listing. Only secret fields inside `encrypted_data` are protected client-side.

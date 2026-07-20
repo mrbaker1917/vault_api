@@ -31,19 +31,23 @@ const VaultContext = createContext<VaultContextValue | null>(null)
 
 export function VaultProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
+  const userId = user?.id
   const [vaultKey, setVaultKey] = useState<CryptoKey | null>(null)
   const [needsSetup, setNeedsSetup] = useState(false)
 
+  // Only clear the derived key when the signed-in account changes (logout / different user).
   useEffect(() => {
     setVaultKey(null)
+  }, [userId])
 
+  useEffect(() => {
     async function detectSetupRequired() {
-      if (!user) {
+      if (!userId) {
         setNeedsSetup(false)
         return
       }
 
-      if (hasStoredVerifier(user.id)) {
+      if (hasStoredVerifier(userId)) {
         setNeedsSetup(false)
         return
       }
@@ -58,7 +62,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     }
 
     void detectSetupRequired()
-  }, [user])
+  }, [userId])
 
   const lock = useCallback(() => {
     setVaultKey(null)

@@ -4,6 +4,7 @@ import type { VaultItem } from '../api/types'
 import { formatRequestError } from '../api/client'
 import { useVault } from '../auth/VaultContext'
 import type { VaultItemPayload } from '../crypto/types'
+import { VaultItemDetail } from '../components/VaultItemDetail'
 import { VaultItemForm, type VaultItemFormValues } from '../components/VaultItemForm'
 
 type DecryptedVaultItem = VaultItem & {
@@ -18,6 +19,7 @@ export function VaultPage() {
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [showCreate, setShowCreate] = useState(false)
+  const [viewing, setViewing] = useState<DecryptedVaultItem | null>(null)
   const [editing, setEditing] = useState<DecryptedVaultItem | null>(null)
 
   const loadItems = useCallback(async () => {
@@ -81,8 +83,22 @@ export function VaultPage() {
   async function handleDelete(item: DecryptedVaultItem) {
     if (!window.confirm(`Delete "${item.Title || 'Untitled'}"?`)) return
     await vaultApi.deleteVaultItem(item.ID, { version: item.Version })
+    setViewing(null)
     setEditing(null)
     await loadItems()
+  }
+
+  function openItem(item: DecryptedVaultItem) {
+    if (item.payload == null) {
+      setViewing({ ...item, decryptFailed: true })
+      return
+    }
+    setViewing(item)
+  }
+
+  function startEdit(item: DecryptedVaultItem) {
+    setViewing(null)
+    setEditing(item)
   }
 
   return (
@@ -91,7 +107,7 @@ export function VaultPage() {
         <div>
           <h1 className="text-3xl font-semibold text-white">Vault</h1>
           <p className="mt-2 text-sm text-slate-400">
-            Secrets are encrypted in your browser before upload.
+            Click an item to view secrets, copy fields, or open links.
           </p>
         </div>
         <button
@@ -138,11 +154,7 @@ export function VaultPage() {
             <button
               key={item.ID}
               type="button"
-              onClick={() =>
-                setEditing(
-                  item.payload == null ? { ...item, decryptFailed: true } : item,
-                )
-              }
+              onClick={() => openItem(item)}
               className="rounded-xl border border-slate-800 bg-slate-900 p-4 text-left transition hover:border-emerald-500/40 hover:bg-slate-900/80"
             >
               <div className="flex items-start justify-between gap-4">
@@ -181,16 +193,15 @@ export function VaultPage() {
         </Modal>
       )}
 
-      {editing && editing.decryptFailed && (
-        <Modal title="Cannot decrypt item" onClose={() => setEditing(null)}>
+      {viewing && viewing.decryptFailed && (
+        <Modal title="Cannot decrypt item" onClose={() => setViewing(null)}>
           <p className="text-sm text-slate-300">
-            This item could not be decrypted with your current master password. Editing it would
-            overwrite the stored ciphertext. You can delete it or unlock with the correct master
-            password on the device where it was created.
+            This item could not be decrypted with your current master password. You can delete it
+            or unlock with the correct master password.
           </p>
           <button
             type="button"
-            onClick={() => void handleDelete(editing)}
+            onClick={() => void handleDelete(viewing)}
             className="mt-4 text-sm text-red-400 hover:underline"
           >
             Delete item
@@ -198,7 +209,21 @@ export function VaultPage() {
         </Modal>
       )}
 
-      {editing && !editing.decryptFailed && editing.payload != null && (
+      {viewing && !viewing.decryptFailed && viewing.payload != null && (
+        <Modal title="Vault item" onClose={() => setViewing(null)}>
+          <VaultItemDetail
+            title={viewing.Title}
+            itemType={viewing.ItemType as VaultItemFormValues['itemType']}
+            folder={viewing.Folder}
+            tags={viewing.Tags ?? []}
+            payload={viewing.payload}
+            onEdit={() => startEdit(viewing)}
+            onDelete={() => void handleDelete(viewing)}
+          />
+        </Modal>
+      )}
+
+      {editing && editing.payload != null && (
         <Modal title="Edit vault item" onClose={() => setEditing(null)}>
           <VaultItemForm
             initial={{
@@ -212,13 +237,6 @@ export function VaultPage() {
             onSubmit={handleUpdate}
             onCancel={() => setEditing(null)}
           />
-          <button
-            type="button"
-            onClick={() => void handleDelete(editing)}
-            className="mt-4 text-sm text-red-400 hover:underline"
-          >
-            Delete item
-          </button>
         </Modal>
       )}
     </div>
