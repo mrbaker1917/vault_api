@@ -5,7 +5,7 @@ export type TokenPair = {
 
 export type MeResponse = {
   id: string
-  mfa_enabled: boolean
+  mfa_enabled?: boolean
 }
 
 export type SignupResponse = {

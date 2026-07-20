@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { ApiError, formatRequestError } from '../api/client'
+import { setMfaEnabledHint } from '../auth/mfa-hint'
 import { useAuth } from '../auth/AuthContext'
 
 export function LoginPage() {
@@ -28,6 +29,7 @@ export function LoginPage() {
     } catch (err) {
       if (err instanceof ApiError && err.mfaRequired) {
         setMfaRequired(true)
+        setMfaEnabledHint(true)
         setError('Enter the code from your authenticator app.')
       } else {
         setError(formatRequestError(err, 'Login failed'))

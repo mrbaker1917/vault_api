@@ -463,6 +463,23 @@ func TestIntegrationMFAFlow(t *testing.T) {
 		t.Fatalf("verify mfa status = %d, body = %s", verify.Status, verify.Body)
 	}
 
+	me := integration.DoJSON(t, handler, integration.JSONRequest{
+		Method: http.MethodGet,
+		Path:   "/api/v1/me",
+		Token:  token,
+	})
+	if me.Status != http.StatusOK {
+		t.Fatalf("me status = %d, body = %s", me.Status, me.Body)
+	}
+	var profile struct {
+		ID         string `json:"id"`
+		MFAEnabled bool   `json:"mfa_enabled"`
+	}
+	integration.DecodeJSON(t, me, &profile)
+	if !profile.MFAEnabled {
+		t.Fatalf("expected mfa_enabled=true on /me, got %+v", profile)
+	}
+
 	loginNoTOTP := integration.DoJSON(t, handler, integration.JSONRequest{
 		Method: http.MethodPost,
 		Path:   "/api/v1/auth/login",

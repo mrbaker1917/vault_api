@@ -6,10 +6,15 @@ import * as recoveryApi from '../api/recovery'
 import * as sessionsApi from '../api/sessions'
 import { ApiError, formatRequestError } from '../api/client'
 import type { Session } from '../api/types'
+import { setMfaEnabledHint } from '../auth/mfa-hint'
 import { useAuth } from '../auth/AuthContext'
 
 export function SettingsPage() {
   const { user, refreshUser } = useAuth()
+
+  useEffect(() => {
+    void refreshUser()
+  }, [refreshUser])
 
   return (
     <div className="space-y-8">
@@ -88,6 +93,7 @@ function MFASection({
       await mfaApi.verifyMFA(verifyCode)
       setSetup(null)
       setVerifyCode('')
+      setMfaEnabledHint(true)
       setMessage('Two-factor authentication is now enabled.')
       onUpdated()
     } catch (err) {
@@ -105,6 +111,7 @@ function MFASection({
     try {
       await mfaApi.disableMFA(disableCode)
       setDisableCode('')
+      setMfaEnabledHint(false)
       setMessage('Two-factor authentication has been disabled.')
       onUpdated()
     } catch (err) {

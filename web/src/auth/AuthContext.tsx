@@ -11,6 +11,7 @@ import { ApiError } from '../api/client'
 import * as authApi from '../api/auth'
 import type { MeResponse } from '../api/types'
 import { createVerifier } from '../crypto/verifier'
+import { clearMfaEnabledHint, resolveMfaEnabled, setMfaEnabledHint } from './mfa-hint'
 import { clearTokens, getAccessToken } from './tokens'
 
 type User = {
@@ -30,7 +31,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 function toUser(me: MeResponse): User {
-  return { id: me.id, mfa_enabled: me.mfa_enabled }
+  return { id: me.id, mfa_enabled: resolveMfaEnabled(me.mfa_enabled) }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -65,6 +66,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string, totpCode?: string) => {
     await authApi.login(email, password, totpCode)
+    if (totpCode) {
+      setMfaEnabledHint(true)
+    }
     await refreshUser()
   }, [refreshUser])
 
@@ -80,6 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await authApi.logout()
+    clearMfaEnabledHint()
     setUser(null)
   }, [])
 
