@@ -112,15 +112,26 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
-    userID, ok := middleware.UserIDFromContext(r.Context())
-    if !ok {
-        http.Error(w, "unauthorized", http.StatusUnauthorized)
-        return
-    }
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 
-    writeJSON(w, http.StatusOK, map[string]string{
-        "id": userID.String(),
-    })
+	user, err := h.authService.GetProfile(r.Context(), userID)
+	if err != nil {
+		if errors.Is(err, service.ErrNotFound) {
+			http.Error(w, "user not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to get profile", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"id":          user.ID.String(),
+		"mfa_enabled": user.MfaEnabled,
+	})
 }
 
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {

@@ -52,3 +52,21 @@ export async function logout(): Promise<void> {
     clearTokens()
   }
 }
+
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+  totpCode?: string,
+): Promise<void> {
+  const body: Record<string, string> = {
+    current_password: currentPassword,
+    new_password: newPassword,
+  }
+  if (totpCode) {
+    body.totp_code = totpCode
+  }
+  await apiFetch('/api/v1/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}

@@ -9,12 +9,13 @@ import {
 } from 'react'
 import { ApiError } from '../api/client'
 import * as authApi from '../api/auth'
-import { createAndStoreSalt } from '../crypto/salt'
+import type { MeResponse } from '../api/types'
 import { createVerifier } from '../crypto/verifier'
 import { clearTokens, getAccessToken } from './tokens'
 
 type User = {
   id: string
+  mfa_enabled: boolean
 }
 
 type AuthContextValue = {
@@ -23,13 +24,23 @@ type AuthContextValue = {
   login: (email: string, password: string, totpCode?: string) => Promise<void>
   signup: (email: string, password: string, masterPassword?: string) => Promise<void>
   logout: () => Promise<void>
+  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+function toUser(me: MeResponse): User {
+  return { id: me.id, mfa_enabled: me.mfa_enabled }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+
+  const refreshUser = useCallback(async () => {
+    const me = await authApi.fetchMe()
+    setUser(toUser(me))
+  }, [])
 
   const loadUser = useCallback(async () => {
     if (!getAccessToken()) {
@@ -39,15 +50,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const me = await authApi.fetchMe()
-      setUser({ id: me.id })
+      await refreshUser()
     } catch {
       clearTokens()
       setUser(null)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [refreshUser])
 
   useEffect(() => {
     void loadUser()
@@ -55,19 +65,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string, totpCode?: string) => {
     await authApi.login(email, password, totpCode)
-    const me = await authApi.fetchMe()
-    setUser({ id: me.id })
-  }, [])
+    await refreshUser()
+  }, [refreshUser])
 
   const signup = useCallback(async (email: string, password: string, masterPassword?: string) => {
     await authApi.signup(email, password)
     await authApi.login(email, password)
     const me = await authApi.fetchMe()
     if (masterPassword) {
-      createAndStoreSalt(me.id)
       await createVerifier(me.id, masterPassword)
     }
-    setUser({ id: me.id })
+    setUser(toUser(me))
   }, [])
 
   const logout = useCallback(async () => {
@@ -76,8 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(
-    () => ({ user, loading, login, signup, logout }),
-    [user, loading, login, signup, logout],
+    () => ({ user, loading, login, signup, logout, refreshUser }),
+    [user, loading, login, signup, logout, refreshUser],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

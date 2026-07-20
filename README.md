@@ -66,7 +66,7 @@ The React app runs at [http://localhost:5173](http://localhost:5173). See [web/R
 | **Audit** | Append-only log of sensitive operations |
 | **Security** | Argon2id passwords, rate-limited auth, encrypted blob validation |
 | **Ops** | JSON logging, `/health`, `/ready`, Prometheus `/metrics`, Docker, GitHub Actions CI |
-| **Web UI** | React app in `web/` — auth (Phase 1) + client-side encrypted vault CRUD (Phase 2) |
+| **Web UI** | React app in `web/` — auth, encrypted vault CRUD, MFA, recovery, sessions, settings |
 
 ### Planned / not yet implemented
 

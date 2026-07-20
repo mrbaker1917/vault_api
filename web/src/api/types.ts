@@ -5,6 +5,7 @@ export type TokenPair = {
 
 export type MeResponse = {
   id: string
+  mfa_enabled: boolean
 }
 
 export type SignupResponse = {
@@ -53,4 +54,23 @@ export type VaultItemUpdateRequest = VaultItemCreateRequest & {
 
 export type VersionRequest = {
   version: number
+}
+
+export type Session = {
+  id: string
+  device_name: string
+  ip_address: string
+  user_agent: string
+  created_at: string
+  expires_at: string
+  is_current: boolean
+}
+
+export type MFASetupResponse = {
+  secret: string
+  otpauth_url: string
+}
+
+export type RecoveryCodesResponse = {
+  recovery_codes: string[]
 }

@@ -971,11 +971,13 @@ components:
 
     MeResponse:
       type: object
-      required: [id]
+      required: [id, mfa_enabled]
       properties:
         id:
           type: string
           format: uuid
+        mfa_enabled:
+          type: boolean
 
     Session:
       type: object

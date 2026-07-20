@@ -74,8 +74,8 @@ export function VaultUnlockGate({ children }: { children: React.ReactNode }) {
         </h1>
         <p className="mt-2 text-sm text-slate-400">
           {needsSetup
-            ? 'This password encrypts your vault. It never leaves your browser.'
-            : 'Enter your master password to decrypt vault items.'}
+            ? 'Choose a master password to encrypt your vault. Use the same one on every device.'
+            : 'Enter your master password to decrypt vault items on this device.'}
         </p>
 
         <form onSubmit={(e) => void handleSubmit(e)} className="mt-8 space-y-4">

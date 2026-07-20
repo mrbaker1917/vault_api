@@ -16,10 +16,18 @@ export function AppLayout() {
   return (
     <div className="min-h-screen">
       <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4">
           <Link to="/" className="text-lg font-semibold text-emerald-400">
             Vault
           </Link>
+          <nav className="flex items-center gap-4 text-sm">
+            <Link to="/" className="text-slate-300 hover:text-white">
+              Vault
+            </Link>
+            <Link to="/settings" className="text-slate-300 hover:text-white">
+              Settings
+            </Link>
+          </nav>
           <div className="flex items-center gap-4 text-sm text-slate-300">
             <span className="hidden font-mono sm:inline">{user?.id}</span>
             {unlocked && (

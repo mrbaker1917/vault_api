@@ -41,6 +41,8 @@ The API allows CORS from `http://localhost:5173` and `http://127.0.0.1:5173` by 
 
 - **Master password** (separate from account password) — never sent to the server
 - PBKDF2 key derivation + AES-256-GCM encryption in the browser
+- **Portable salt** derived from your user ID — same master password works on any browser/device
+- Legacy per-browser salts are migrated automatically on unlock
 - Encrypted blob format: `[0x01 version][12-byte IV][ciphertext]` (matches API validation)
 - Vault unlock / lock flow with local salt + verifier in `localStorage`
 - Vault item list, create, edit, delete (login, note, card, identity types)
@@ -48,6 +50,15 @@ The API allows CORS from `http://localhost:5173` and `http://127.0.0.1:5173` by 
 
 Metadata (`title`, `folder`, `tags`, `item_type`) is stored in plaintext on the server for search and listing. Only secret fields inside `encrypted_data` are protected client-side.
 
-## Next (Phase 3)
+## Phase 3 — Security settings
 
-- MFA setup UI, recovery codes, sessions, account password change
+- MFA enrollment (QR code + TOTP verify) and disable
+- Recovery code generation (requires MFA) and recovery sign-in page
+- Active sessions list with revoke
+- Account password change (with TOTP when MFA enabled)
+
+Settings are at `/settings` and do not require vault unlock.
+
+## Next (Phase 4)
+
+- Audit log viewer, soft-delete restore UI, deploy polish

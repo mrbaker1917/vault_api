@@ -34,6 +34,17 @@ func NewAuthService(users repository.UserRepository, sessions repository.Session
 	}
 }
 
+func (s *AuthService) GetProfile(ctx context.Context, userID uuid.UUID) (domain.User, error) {
+	user, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return domain.User{}, ErrNotFound
+		}
+		return domain.User{}, fmt.Errorf("get user: %w", err)
+	}
+	return user, nil
+}
+
 func (s *AuthService) Signup(ctx context.Context, email, password string, audit AuditContext) (domain.User, error) {
 	hashPassword, err := crypto.HashPassword(password)
 	if err != nil {

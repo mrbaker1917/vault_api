@@ -7,14 +7,12 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import * as vaultApi from '../api/vault'
 import { decryptPayload, encryptPayload } from '../crypto/blob'
+import { migrateIfNeeded } from '../crypto/migrate'
 import { deriveVaultKey } from '../crypto/kdf'
-import {
-  createAndStoreSalt,
-  hasStoredSalt,
-  loadSalt,
-} from '../crypto/salt'
-import { createVerifier, verifyMasterPassword } from '../crypto/verifier'
+import { getPrimarySalt } from '../crypto/salt'
+import { createVerifier, hasStoredVerifier, resolveSaltForPassword } from '../crypto/verifier'
 import type { VaultItemPayload } from '../crypto/types'
 import { bytesToBase64, base64ToBytes } from '../crypto/encoding'
 import { useAuth } from './AuthContext'
@@ -38,11 +36,27 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setVaultKey(null)
-    if (!user) {
-      setNeedsSetup(false)
-      return
+
+    async function detectSetupRequired() {
+      if (!user) {
+        setNeedsSetup(false)
+        return
+      }
+
+      if (hasStoredVerifier(user.id)) {
+        setNeedsSetup(false)
+        return
+      }
+
+      try {
+        const { total } = await vaultApi.listVaultItems({ limit: 1 })
+        setNeedsSetup(total === 0)
+      } catch {
+        setNeedsSetup(true)
+      }
     }
-    setNeedsSetup(!hasStoredSalt(user.id))
+
+    void detectSetupRequired()
   }, [user])
 
   const lock = useCallback(() => {
@@ -54,12 +68,22 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       if (!user) {
         throw new Error('not authenticated')
       }
-      const valid = await verifyMasterPassword(user.id, masterPassword)
-      if (!valid) {
+
+      let encryptedSample: string | undefined
+      if (!hasStoredVerifier(user.id)) {
+        const { items } = await vaultApi.listVaultItems({ limit: 1 })
+        encryptedSample = items[0]?.EncryptedData
+      }
+
+      const salt = await resolveSaltForPassword(user.id, masterPassword, encryptedSample)
+      if (!salt) {
         throw new Error('incorrect master password')
       }
-      const salt = loadSalt(user.id)
-      const key = await deriveVaultKey(masterPassword, salt)
+
+      await migrateIfNeeded(user.id, masterPassword, salt)
+
+      const primarySalt = await getPrimarySalt(user.id)
+      const key = await deriveVaultKey(masterPassword, primarySalt)
       setVaultKey(key)
     },
     [user],
@@ -70,9 +94,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       if (!user) {
         throw new Error('not authenticated')
       }
-      createAndStoreSalt(user.id)
       await createVerifier(user.id, masterPassword)
-      const salt = loadSalt(user.id)
+      const salt = await getPrimarySalt(user.id)
       const key = await deriveVaultKey(masterPassword, salt)
       setVaultKey(key)
       setNeedsSetup(false)
