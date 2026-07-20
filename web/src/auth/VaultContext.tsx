@@ -9,7 +9,7 @@ import {
 } from 'react'
 import * as vaultApi from '../api/vault'
 import { decryptPayload, encryptPayload } from '../crypto/blob'
-import { migrateIfNeeded } from '../crypto/migrate'
+import { migrateIfNeeded, MigrationError } from '../crypto/migrate'
 import { deriveVaultKey } from '../crypto/kdf'
 import { getPrimarySalt } from '../crypto/salt'
 import { createVerifier, hasStoredVerifier, resolveSaltForPassword } from '../crypto/verifier'
@@ -52,7 +52,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         const { total } = await vaultApi.listVaultItems({ limit: 1 })
         setNeedsSetup(total === 0)
       } catch {
-        setNeedsSetup(true)
+        // If the API is unreachable, prefer unlock over setup to avoid clobbering existing vaults.
+        setNeedsSetup(false)
       }
     }
 
@@ -80,7 +81,14 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         throw new Error('incorrect master password')
       }
 
-      await migrateIfNeeded(user.id, masterPassword, salt)
+      try {
+        await migrateIfNeeded(user.id, masterPassword, salt)
+      } catch (err) {
+        if (err instanceof MigrationError) {
+          throw err
+        }
+        throw new Error('vault migration failed')
+      }
 
       const primarySalt = await getPrimarySalt(user.id)
       const key = await deriveVaultKey(masterPassword, primarySalt)

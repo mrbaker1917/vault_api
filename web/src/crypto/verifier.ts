@@ -82,10 +82,6 @@ export async function resolveSaltForPassword(
     }
   }
 
-  if (!storedVerifier && !encryptedSample) {
-    return getPrimarySalt(userId)
-  }
-
   return null
 }
 

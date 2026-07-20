@@ -8,6 +8,7 @@ import { VaultItemForm, type VaultItemFormValues } from '../components/VaultItem
 
 type DecryptedVaultItem = VaultItem & {
   payload?: VaultItemPayload
+  decryptFailed?: boolean
 }
 
 export function VaultPage() {
@@ -63,7 +64,7 @@ export function VaultPage() {
   }
 
   async function handleUpdate(values: VaultItemFormValues) {
-    if (!editing) return
+    if (!editing || editing.payload == null) return
     const encrypted_data = await encryptItemPayload(values.payload)
     await vaultApi.updateVaultItem(editing.ID, {
       encrypted_data,
@@ -137,7 +138,11 @@ export function VaultPage() {
             <button
               key={item.ID}
               type="button"
-              onClick={() => setEditing(item)}
+              onClick={() =>
+                setEditing(
+                  item.payload == null ? { ...item, decryptFailed: true } : item,
+                )
+              }
               className="rounded-xl border border-slate-800 bg-slate-900 p-4 text-left transition hover:border-emerald-500/40 hover:bg-slate-900/80"
             >
               <div className="flex items-start justify-between gap-4">
@@ -176,7 +181,24 @@ export function VaultPage() {
         </Modal>
       )}
 
-      {editing && (
+      {editing && editing.decryptFailed && (
+        <Modal title="Cannot decrypt item" onClose={() => setEditing(null)}>
+          <p className="text-sm text-slate-300">
+            This item could not be decrypted with your current master password. Editing it would
+            overwrite the stored ciphertext. You can delete it or unlock with the correct master
+            password on the device where it was created.
+          </p>
+          <button
+            type="button"
+            onClick={() => void handleDelete(editing)}
+            className="mt-4 text-sm text-red-400 hover:underline"
+          >
+            Delete item
+          </button>
+        </Modal>
+      )}
+
+      {editing && !editing.decryptFailed && editing.payload != null && (
         <Modal title="Edit vault item" onClose={() => setEditing(null)}>
           <VaultItemForm
             initial={{
@@ -184,7 +206,7 @@ export function VaultPage() {
               title: editing.Title,
               folder: editing.Folder,
               tags: editing.Tags?.join(', ') ?? '',
-              payload: editing.payload ?? undefined,
+              payload: editing.payload,
             }}
             submitLabel="Save changes"
             onSubmit={handleUpdate}

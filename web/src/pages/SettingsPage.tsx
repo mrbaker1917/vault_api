@@ -8,6 +8,7 @@ import { ApiError, formatRequestError } from '../api/client'
 import type { Session } from '../api/types'
 import { setMfaEnabledHint } from '../auth/mfa-hint'
 import { useAuth } from '../auth/AuthContext'
+import { MfaQrCode } from '../components/MfaQrCode'
 
 export function SettingsPage() {
   const { user, refreshUser } = useAuth()
@@ -150,20 +151,11 @@ function MFASection({
             Scan this QR code or enter the secret in your authenticator app, then confirm with a
             code.
           </p>
-          <img
-            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(setup.otpauth_url)}`}
-            alt="MFA QR code"
-            className="rounded-md border border-slate-700 bg-white p-2"
-            width={180}
-            height={180}
-          />
+          <MfaQrCode otpauthUrl={setup.otpauth_url} />
           <p className="break-all font-mono text-xs text-slate-400">{setup.secret}</p>
-          <a
-            href={setup.otpauth_url}
-            className="text-sm text-emerald-400 hover:underline"
-          >
-            Open in authenticator app
-          </a>
+          <p className="text-xs text-slate-500">
+            Or enter the secret above manually in your authenticator app.
+          </p>
           <form onSubmit={(e) => void handleVerify(e)} className="flex gap-3">
             <input
               type="text"
