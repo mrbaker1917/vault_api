@@ -2,9 +2,12 @@
 
 ![Status of tests on this REPO](https://github.com/mrbaker1917/vault_api/actions/workflows/ci.yml/badge.svg)
 
-Zero-knowledge password vault backend in Go. The server authenticates users and stores encrypted blobs plus metadata; clients derive keys and encrypt vault contents locally.
+Zero-knowledge password vault backend in Go. The server authenticates users and stores encrypted blobs plus metadata; clients derive keys and encrypt vault contents locally. Also, a frontend using TypeScript and Tailwind.
 
 **Status:** MVP complete — auth, vault CRUD, MFA, recovery, sharing, audit, metrics, CI, and docs are implemented.
+
+## Motivation: 
+I wanted to create a password manager to understand how it would be constructed, considering all the possible security problems.
 
 ## Quick start
 
@@ -14,7 +17,7 @@ Zero-knowledge password vault backend in Go. The server authenticates users and 
 - PostgreSQL 16+ (or Docker)
 - For integration tests: Docker (testcontainers)
 
-### Local development
+## Contributing
 
 ```bash
 # Apply migrations to your Postgres instance (goose), then:
@@ -51,7 +54,7 @@ npm run dev
 
 The React app runs at [http://localhost:5173](http://localhost:5173). See [web/README.md](web/README.md).
 
-## Features
+## Usage:
 
 ### Implemented
 
