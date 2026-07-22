@@ -9,7 +9,7 @@ Zero-knowledge password vault backend in Go. The server authenticates users and 
 ## Motivation: 
 I wanted to create a password manager to understand how it would be constructed, considering all the possible security problems.
 
-## Quick start
+## Quick Start
 
 ### Prerequisites
 
