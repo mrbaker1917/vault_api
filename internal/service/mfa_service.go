@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"vault_api/internal/crypto"
@@ -18,12 +19,24 @@ var (
 )
 
 type MFAService struct {
-	users repository.UserRepository
-	audit *AuditService
+	users         repository.UserRepository
+	recoveryCodes repository.RecoveryCodeRepository
+	jwtSecret     string
+	audit         *AuditService
 }
 
-func NewMFAService(users repository.UserRepository, audit *AuditService) *MFAService {
-	return &MFAService{users: users, audit: audit}
+func NewMFAService(
+	users repository.UserRepository,
+	recoveryCodes repository.RecoveryCodeRepository,
+	jwtSecret string,
+	audit *AuditService,
+) *MFAService {
+	return &MFAService{
+		users:         users,
+		recoveryCodes: recoveryCodes,
+		jwtSecret:     jwtSecret,
+		audit:         audit,
+	}
 }
 
 type MFASetup struct {
@@ -31,7 +44,12 @@ type MFASetup struct {
 	OTPAuthURL string
 }
 
-func (s *MFAService) EnableMFA(ctx context.Context, userID uuid.UUID, audit AuditContext) (MFASetup, error) {
+func (s *MFAService) EnableMFA(ctx context.Context, userID uuid.UUID, audit AuditContext, password string) (MFASetup, error) {
+	password = strings.TrimSpace(password)
+	if password == "" {
+		return MFASetup{}, ErrInvalidCredentials
+	}
+
 	user, err := s.users.GetByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -43,12 +61,25 @@ func (s *MFAService) EnableMFA(ctx context.Context, userID uuid.UUID, audit Audi
 		return MFASetup{}, ErrMFAAlreadyEnabled
 	}
 
+	ok, err := crypto.CheckPasswordHash(password, user.PasswordHash)
+	if err != nil {
+		return MFASetup{}, fmt.Errorf("check password hash: %w", err)
+	}
+	if !ok {
+		return MFASetup{}, ErrInvalidCredentials
+	}
+
 	setup, err := crypto.GenerateTOTPSecret(user.Email)
 	if err != nil {
 		return MFASetup{}, fmt.Errorf("generate totp secret: %w", err)
 	}
 
-	if err := s.users.EnableMFASecret(ctx, userID, setup.Secret); err != nil {
+	encryptedSecret, err := crypto.EncryptMFASecret(setup.Secret, s.jwtSecret)
+	if err != nil {
+		return MFASetup{}, fmt.Errorf("encrypt mfa secret: %w", err)
+	}
+
+	if err := s.users.EnableMFASecret(ctx, userID, encryptedSecret); err != nil {
 		return MFASetup{}, fmt.Errorf("store mfa secret: %w", err)
 	}
 
@@ -73,10 +104,11 @@ func (s *MFAService) VerifyMFA(ctx context.Context, userID uuid.UUID, audit Audi
 	if user.MfaEnabled {
 		return ErrMFAAlreadyEnabled
 	}
-	if user.MfaSecret == nil {
+	plainSecret, ok := s.resolveTOTPSecret(user.MfaSecret)
+	if !ok {
 		return ErrMFANotEnabled
 	}
-	if !crypto.ValidateTOTPCode(*user.MfaSecret, code) {
+	if !crypto.ValidateTOTPCode(plainSecret, code) {
 		return ErrInvalidTOTPCode
 	}
 	if err := s.users.ConfirmMFA(ctx, userID); err != nil {
@@ -101,11 +133,17 @@ func (s *MFAService) DisableMFA(ctx context.Context, userID uuid.UUID, audit Aud
 	if !user.MfaEnabled {
 		return ErrMFANotEnabled
 	}
-	if user.MfaSecret == nil || !crypto.ValidateTOTPCode(*user.MfaSecret, code) {
+	plainSecret, ok := s.resolveTOTPSecret(user.MfaSecret)
+	if !ok || !crypto.ValidateTOTPCode(plainSecret, code) {
 		return ErrInvalidTOTPCode
 	}
 	if err := s.users.DisableMFA(ctx, userID); err != nil {
 		return fmt.Errorf("disable mfa: %w", err)
+	}
+	if s.recoveryCodes != nil {
+		if err := s.recoveryCodes.DeleteByUserID(ctx, userID); err != nil {
+			return fmt.Errorf("delete recovery codes: %w", err)
+		}
 	}
 
 	if s.audit != nil {
@@ -113,4 +151,15 @@ func (s *MFAService) DisableMFA(ctx context.Context, userID uuid.UUID, audit Aud
 	}
 
 	return nil
+}
+
+func (s *MFAService) resolveTOTPSecret(stored *string) (string, bool) {
+	if stored == nil {
+		return "", false
+	}
+	plain, err := crypto.DecryptMFASecret(*stored, s.jwtSecret)
+	if err != nil || plain == "" {
+		return "", false
+	}
+	return plain, true
 }

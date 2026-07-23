@@ -335,9 +335,16 @@ paths:
       summary: Begin MFA enrollment
       operationId: enableMFA
       description: |
-        Generates a TOTP secret. MFA is not active until `/mfa/verify` succeeds with a valid code.
+        Requires the account password. Generates a TOTP secret. MFA is not active until
+        `/mfa/verify` succeeds with a valid code. The secret is encrypted at rest.
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MFAEnableRequest"
       responses:
         "200":
           description: TOTP setup details
@@ -345,6 +352,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MFASetupResponse"
+        "400":
+          $ref: "#/components/responses/BadRequestText"
         "401":
           $ref: "#/components/responses/UnauthorizedText"
         "409":
@@ -424,9 +433,17 @@ paths:
       tags: [Recovery]
       summary: Generate recovery codes
       operationId: generateRecoveryCodes
-      description: Requires MFA to be enabled. Replaces any existing unused codes.
+      description: |
+        Requires MFA to be enabled, plus account password and a current TOTP code.
+        Replaces any existing unused codes.
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecoveryGenerateRequest"
       responses:
         "200":
           description: Plaintext recovery codes (shown once)
@@ -435,7 +452,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/RecoveryCodesResponse"
         "400":
-          description: MFA must be enabled first
+          description: MFA must be enabled first or invalid JSON
           content:
             text/plain:
               schema:
@@ -451,7 +468,10 @@ paths:
       tags: [Recovery]
       summary: Login with recovery code
       operationId: verifyRecovery
-      description: Bypasses MFA when a valid one-time recovery code is supplied.
+      description: |
+        Bypasses MFA when a valid one-time recovery code is supplied. On success the server
+        disables MFA (forcing re-enrollment), deletes remaining recovery codes, and revokes
+        other sessions.
       requestBody:
         required: true
         content:
@@ -1044,6 +1064,27 @@ components:
         code:
           type: string
           description: 6-digit TOTP code
+
+    MFAEnableRequest:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+          format: password
+          description: Current account password (step-up authentication)
+
+    RecoveryGenerateRequest:
+      type: object
+      required: [password, code]
+      properties:
+        password:
+          type: string
+          format: password
+          description: Current account password
+        code:
+          type: string
+          description: Current 6-digit TOTP code
 
     RecoveryCodesResponse:
       type: object

@@ -18,13 +18,38 @@ func (h *Handler) GenerateRecoveryCodes(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	codes, err := h.recoveryService.GenerateRecoveryCodes(r.Context(), userID, auditContextFromRequest(r))
+	var req struct {
+		Password string `json:"password"`
+		Code     string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.Password) == "" || strings.TrimSpace(req.Code) == "" {
+		http.Error(w, "password and code are required", http.StatusBadRequest)
+		return
+	}
+
+	codes, err := h.recoveryService.GenerateRecoveryCodes(
+		r.Context(),
+		userID,
+		auditContextFromRequest(r),
+		req.Password,
+		req.Code,
+	)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrRecoveryRequiresMFA):
 			http.Error(w, "mfa must be enabled before generating recovery codes", http.StatusBadRequest)
+		case errors.Is(err, service.ErrInvalidCredentials):
+			http.Error(w, "invalid credentials", http.StatusUnauthorized)
+		case errors.Is(err, service.ErrMFARequired):
+			http.Error(w, "totp code is required", http.StatusUnauthorized)
+		case errors.Is(err, service.ErrInvalidTOTPCode):
+			http.Error(w, "invalid totp code", http.StatusUnauthorized)
 		default:
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "failed to generate recovery codes", http.StatusInternalServerError)
 		}
 		return
 	}
@@ -70,7 +95,7 @@ func (h *Handler) VerifyRecovery(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, service.ErrRecoveryRequiresMFA):
 			http.Error(w, "mfa must be enabled to use recovery codes", http.StatusBadRequest)
 		default:
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "failed to verify recovery code", http.StatusInternalServerError)
 		}
 		return
 	}

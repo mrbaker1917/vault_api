@@ -53,8 +53,8 @@ Metadata (`title`, `folder`, `tags`, `item_type`) is stored in plaintext on the 
 
 ## Phase 3 — Security settings
 
-- MFA enrollment (QR code + TOTP verify) and disable
-- Recovery code generation (requires MFA) and recovery sign-in page
+- MFA enrollment (account password step-up + QR code + TOTP verify) and disable
+- Recovery code generation (requires MFA, account password, and TOTP) and recovery sign-in page
 - Active sessions list with revoke
 - Account password change (with TOTP when MFA enabled)
 

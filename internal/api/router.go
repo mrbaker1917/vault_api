@@ -30,7 +30,7 @@ func NewRouter(deps Deps) http.Handler {
 	audit := service.NewAuditService(deps.AuditLogs)
 	auth := service.NewAuthService(deps.Users, deps.Sessions, deps.JWTSecret, audit)
 	vault := service.NewVaultService(deps.VaultItems, deps.SharedVaultItems, deps.Users, audit)
-	mfa := service.NewMFAService(deps.Users, audit)
+	mfa := service.NewMFAService(deps.Users, deps.RecoveryCodes, deps.JWTSecret, audit)
 	recovery := service.NewRecoveryService(deps.Users, deps.RecoveryCodes, auth, audit)
 	h := handlers.NewHandler(auth, vault, mfa, recovery, audit)
 	mux.HandleFunc("POST /api/v1/auth/signup", h.Signup)

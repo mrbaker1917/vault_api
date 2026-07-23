@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { formatRequestError } from '../api/client'
 import * as recoveryApi from '../api/recovery'
+import { setMfaEnabledHint } from '../auth/mfa-hint'
 import { useAuth } from '../auth/AuthContext'
 
 export function RecoveryLoginPage() {
@@ -23,8 +24,9 @@ export function RecoveryLoginPage() {
     setSubmitting(true)
     try {
       await recoveryApi.recoveryLogin(email, password, recoveryCode)
+      setMfaEnabledHint(false)
       await refreshUser()
-      navigate('/')
+      navigate('/settings')
     } catch (err) {
       setError(formatRequestError(err, 'Recovery login failed'))
     } finally {
@@ -37,7 +39,9 @@ export function RecoveryLoginPage() {
       <div className="w-full max-w-md rounded-xl border border-slate-800 bg-slate-900 p-8 shadow-xl">
         <h1 className="text-2xl font-semibold text-white">Recovery sign in</h1>
         <p className="mt-2 text-sm text-slate-400">
-          Use a one-time recovery code when you cannot access your authenticator app.
+          Use a one-time recovery code when you cannot access your authenticator app. After a
+          successful recovery sign-in, MFA is turned off so you can enroll a new authenticator, and
+          other sessions are signed out.
         </p>
 
         <form onSubmit={(e) => void handleSubmit(e)} className="mt-8 space-y-4">

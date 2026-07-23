@@ -17,18 +17,33 @@ func (h *Handler) EnableMFA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	setup, err := h.mfaService.EnableMFA(r.Context(), userID, auditContextFromRequest(r))
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.Password) == "" {
+		http.Error(w, "password is required", http.StatusBadRequest)
+		return
+	}
+
+	setup, err := h.mfaService.EnableMFA(r.Context(), userID, auditContextFromRequest(r), req.Password)
 	if err != nil {
-		if errors.Is(err, service.ErrMFAAlreadyEnabled) {
+		switch {
+		case errors.Is(err, service.ErrMFAAlreadyEnabled):
 			http.Error(w, "mfa already enabled", http.StatusConflict)
-			return
+		case errors.Is(err, service.ErrInvalidCredentials):
+			http.Error(w, "invalid credentials", http.StatusUnauthorized)
+		default:
+			http.Error(w, "failed to enable mfa", http.StatusInternalServerError)
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{
-		"secret":       setup.Secret,
+		"secret":      setup.Secret,
 		"otpauth_url": setup.OTPAuthURL,
 	})
 }
@@ -62,7 +77,7 @@ func (h *Handler) VerifyMFA(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, service.ErrInvalidTOTPCode):
 			http.Error(w, "invalid totp code", http.StatusUnauthorized)
 		default:
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "failed to verify mfa", http.StatusInternalServerError)
 		}
 		return
 	}
@@ -97,7 +112,7 @@ func (h *Handler) DisableMFA(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, service.ErrInvalidTOTPCode):
 			http.Error(w, "invalid totp code", http.StatusUnauthorized)
 		default:
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "failed to disable mfa", http.StatusInternalServerError)
 		}
 		return
 	}

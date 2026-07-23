@@ -158,7 +158,7 @@ Logout and session revoke set `sessions.revoked_at`; subsequent access token use
 
 - Generated only when MFA is enabled; replaces prior unused codes.
 - Ten codes per generation; plaintext shown once; **SHA-256 hashes** stored in `recovery_codes`.
-- `POST /recovery/verify` validates email + account password + code, marks code used, issues tokens (bypasses TOTP).
+- `POST /recovery/verify` validates email + account password + code, marks code used, disables MFA (forcing re-enrollment), deletes remaining recovery codes, revokes other sessions, and issues tokens.
 
 ---
 

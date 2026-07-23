@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strings"
 )
@@ -11,6 +12,7 @@ type Config struct {
 	DatabaseURL        string
 	RedisURL           string
 	JWTSecret          string
+	AppEnv             string
 	CORSAllowedOrigins []string
 }
 
@@ -21,7 +23,41 @@ func Load() Config {
 		DatabaseURL:        envOrDefault("DATABASE_URL", "postgres://vault:vault@localhost:5433/vault_api?sslmode=disable"),
 		RedisURL:           envOrDefault("REDIS_URL", "redis://localhost:6379"),
 		JWTSecret:          envOrDefault("JWT_SECRET", "change-me"),
+		AppEnv:             envOrDefault("APP_ENV", "production"),
 		CORSAllowedOrigins: corsAllowedOrigins(),
+	}
+}
+
+// Validate rejects insecure JWT secrets outside development.
+func (c Config) Validate() error {
+	if isDevelopment(c.AppEnv) {
+		return nil
+	}
+	secret := strings.TrimSpace(c.JWTSecret)
+	if secret == "" || isInsecureJWTSecret(secret) {
+		return fmt.Errorf("JWT_SECRET must be set to a strong value (not empty, change-me, or dev-secret); set APP_ENV=development only for local use")
+	}
+	if len(secret) < 32 {
+		return fmt.Errorf("JWT_SECRET must be at least 32 characters in %s", c.AppEnv)
+	}
+	return nil
+}
+
+func isDevelopment(appEnv string) bool {
+	switch strings.ToLower(strings.TrimSpace(appEnv)) {
+	case "development", "dev", "local", "test":
+		return true
+	default:
+		return false
+	}
+}
+
+func isInsecureJWTSecret(secret string) bool {
+	switch strings.ToLower(strings.TrimSpace(secret)) {
+	case "change-me", "dev-secret", "secret", "jwt-secret", "password":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -40,18 +76,19 @@ func splitCSV(value string) []string {
 		return nil
 	}
 	parts := strings.Split(value, ",")
-	origins := make([]string, 0, len(parts))
+	out := make([]string, 0, len(parts))
 	for _, part := range parts {
-		if trimmed := strings.TrimSpace(part); trimmed != "" {
-			origins = append(origins, trimmed)
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
 		}
 	}
-	return origins
+	return out
 }
 
 func envOrDefault(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		return value
 	}
 	return fallback
 }

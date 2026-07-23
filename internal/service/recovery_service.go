@@ -35,7 +35,17 @@ func NewRecoveryService(
 	}
 }
 
-func (s *RecoveryService) GenerateRecoveryCodes(ctx context.Context, userID uuid.UUID, audit AuditContext) ([]string, error) {
+func (s *RecoveryService) GenerateRecoveryCodes(
+	ctx context.Context,
+	userID uuid.UUID,
+	audit AuditContext,
+	password, totpCode string,
+) ([]string, error) {
+	password = strings.TrimSpace(password)
+	if password == "" {
+		return nil, ErrInvalidCredentials
+	}
+
 	user, err := s.users.GetByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -45,6 +55,28 @@ func (s *RecoveryService) GenerateRecoveryCodes(ctx context.Context, userID uuid
 	}
 	if !user.MfaEnabled {
 		return nil, ErrRecoveryRequiresMFA
+	}
+
+	ok, err := crypto.CheckPasswordHash(password, user.PasswordHash)
+	if err != nil {
+		return nil, fmt.Errorf("check password hash: %w", err)
+	}
+	if !ok {
+		return nil, ErrInvalidCredentials
+	}
+
+	if strings.TrimSpace(totpCode) == "" {
+		return nil, ErrMFARequired
+	}
+	if user.MfaSecret == nil {
+		return nil, ErrInvalidTOTPCode
+	}
+	plainSecret, err := crypto.DecryptMFASecret(*user.MfaSecret, s.auth.jwtSecret)
+	if err != nil {
+		return nil, ErrInvalidTOTPCode
+	}
+	if !crypto.ValidateTOTPCode(plainSecret, totpCode) {
+		return nil, ErrInvalidTOTPCode
 	}
 
 	if err := s.recoveryCodes.DeleteByUserID(ctx, userID); err != nil {
@@ -132,9 +164,20 @@ func (s *RecoveryService) VerifyRecoveryLogin(
 		return "", "", fmt.Errorf("mark recovery code used: %w", err)
 	}
 
-	accessToken, refreshToken, err = s.auth.CreateSessionTokens(ctx, user, device)
+	// Force MFA re-enrollment after recovery: clear TOTP and remaining codes.
+	if err := s.users.DisableMFA(ctx, user.ID); err != nil {
+		return "", "", fmt.Errorf("disable mfa after recovery: %w", err)
+	}
+	if err := s.recoveryCodes.DeleteByUserID(ctx, user.ID); err != nil {
+		return "", "", fmt.Errorf("delete recovery codes after recovery: %w", err)
+	}
+
+	accessToken, refreshToken, sessionID, err := s.auth.CreateSessionTokens(ctx, user, device)
 	if err != nil {
 		return "", "", err
+	}
+	if err := s.auth.RevokeOtherSessions(ctx, user.ID, sessionID); err != nil {
+		return "", "", fmt.Errorf("revoke other sessions after recovery: %w", err)
 	}
 
 	if s.audit != nil {
@@ -144,6 +187,7 @@ func (s *RecoveryService) VerifyRecoveryLogin(
 			UserAgent: device.UserAgent,
 		}, AuditRecoveryVerify, "user", &userID, map[string]any{
 			"device_name": device.DeviceName,
+			"mfa_reset":   true,
 		})
 	}
 

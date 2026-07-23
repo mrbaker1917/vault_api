@@ -456,6 +456,9 @@ func TestIntegrationMFAFlow(t *testing.T) {
 		Method: http.MethodPost,
 		Path:   "/api/v1/mfa/enable",
 		Token:  token,
+		Body: map[string]string{
+			"password": password,
+		},
 	})
 	if enable.Status != http.StatusOK {
 		t.Fatalf("enable mfa status = %d, body = %s", enable.Status, enable.Body)

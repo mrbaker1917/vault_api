@@ -8,6 +8,7 @@ services:
       - "${APP_HOST_PORT:-8081}:8080"
     environment:
       PORT: "8080"
+      APP_ENV: "development"
       DATABASE_URL: "postgres://vault:vault@postgres:5432/vault_api?sslmode=disable"
       REDIS_URL: "redis://redis:6379"
       JWT_SECRET: "dev-secret"

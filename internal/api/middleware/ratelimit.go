@@ -41,7 +41,7 @@ func isAuthRateLimitedRoute(method, path string) bool {
 	}
 
 	switch path {
-	case "/api/v1/auth/signup", "/api/v1/auth/login", "/api/v1/auth/refresh":
+	case "/api/v1/auth/signup", "/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/recovery/verify":
 		return true
 	default:
 		return false

@@ -22,7 +22,8 @@ I wanted to create a password manager to understand how it would be constructed,
 ```bash
 # Apply migrations to your Postgres instance (goose), then:
 export DATABASE_URL="postgres://vault:vault@localhost:5433/vault_api?sslmode=disable"
-export JWT_SECRET="dev-secret-change-me"
+export JWT_SECRET="dev-secret-change-me-for-local-only!!"
+export APP_ENV=development
 export PORT=8081
 
 go run ./cmd/server
@@ -172,8 +173,9 @@ CI (`.github/workflows/ci.yml`) runs lint, unit tests, integration tests, OpenAP
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `8081` | HTTP listen port |
+| `APP_ENV` | `production` | Set to `development` / `dev` / `local` / `test` to allow weak JWT secrets locally |
 | `DATABASE_URL` | local Postgres DSN | PostgreSQL connection string |
-| `JWT_SECRET` | `change-me` | HS256 signing key |
+| `JWT_SECRET` | `change-me` | HS256 signing key; **required ≥32 chars** and not a known weak value unless `APP_ENV` is development |
 | `REDIS_URL` | `redis://localhost:6379` | Reserved (not used yet) |
 | `CORS_ALLOWED_ORIGINS` | — | Comma-separated allowed origins |
 

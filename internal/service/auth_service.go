@@ -104,12 +104,12 @@ func (s *AuthService) Login(ctx context.Context, email, password, totpCode strin
 		if strings.TrimSpace(totpCode) == "" {
 			return "", "", ErrMFARequired
 		}
-		if user.MfaSecret == nil || !crypto.ValidateTOTPCode(*user.MfaSecret, totpCode) {
+		if !s.validateUserTOTP(user.MfaSecret, totpCode) {
 			return "", "", ErrInvalidTOTPCode
 		}
 	}
 
-	accessToken, refreshToken, err = s.CreateSessionTokens(ctx, user, device)
+	accessToken, refreshToken, _, err = s.CreateSessionTokens(ctx, user, device)
 	if err != nil {
 		return "", "", err
 	}
@@ -128,14 +128,14 @@ func (s *AuthService) Login(ctx context.Context, email, password, totpCode strin
 	return accessToken, refreshToken, nil
 }
 
-func (s *AuthService) CreateSessionTokens(ctx context.Context, user domain.User, device LoginDeviceInfo) (accessToken, refreshToken string, err error) {
+func (s *AuthService) CreateSessionTokens(ctx context.Context, user domain.User, device LoginDeviceInfo) (accessToken, refreshToken string, sessionID uuid.UUID, err error) {
 	refreshToken, err = crypto.GenerateRefreshToken()
 	if err != nil {
-		return "", "", fmt.Errorf("generate refresh token: %w", err)
+		return "", "", uuid.Nil, fmt.Errorf("generate refresh token: %w", err)
 	}
 	tokenHash, err := crypto.HashToken(refreshToken)
 	if err != nil {
-		return "", "", fmt.Errorf("hash token: %w", err)
+		return "", "", uuid.Nil, fmt.Errorf("hash token: %w", err)
 	}
 	session, err := s.sessions.Create(ctx, domain.Session{
 		UserID:     user.ID,
@@ -147,7 +147,7 @@ func (s *AuthService) CreateSessionTokens(ctx context.Context, user domain.User,
 		ExpiresAt:  time.Now().Add(7 * 24 * time.Hour),
 	})
 	if err != nil {
-		return "", "", fmt.Errorf("create session: %w", err)
+		return "", "", uuid.Nil, fmt.Errorf("create session: %w", err)
 	}
 	accessToken, err = crypto.MakeAccessToken(
 		user.ID,
@@ -156,9 +156,27 @@ func (s *AuthService) CreateSessionTokens(ctx context.Context, user domain.User,
 		accessTokenTTL,
 	)
 	if err != nil {
-		return "", "", fmt.Errorf("make access token: %w", err)
+		return "", "", uuid.Nil, fmt.Errorf("make access token: %w", err)
 	}
-	return accessToken, refreshToken, nil
+	return accessToken, refreshToken, session.ID, nil
+}
+
+func (s *AuthService) RevokeOtherSessions(ctx context.Context, userID, keepSessionID uuid.UUID) error {
+	if err := s.sessions.RevokeAllExcept(ctx, userID, keepSessionID); err != nil {
+		return fmt.Errorf("revoke other sessions: %w", err)
+	}
+	return nil
+}
+
+func (s *AuthService) validateUserTOTP(stored *string, code string) bool {
+	if stored == nil {
+		return false
+	}
+	plain, err := crypto.DecryptMFASecret(*stored, s.jwtSecret)
+	if err != nil {
+		return false
+	}
+	return crypto.ValidateTOTPCode(plain, code)
 }
 
 func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (accessToken string, err error) {
@@ -254,7 +272,7 @@ func (s *AuthService) ChangePassword(
 		if strings.TrimSpace(totpCode) == "" {
 			return ErrMFARequired
 		}
-		if user.MfaSecret == nil || !crypto.ValidateTOTPCode(*user.MfaSecret, totpCode) {
+		if !s.validateUserTOTP(user.MfaSecret, totpCode) {
 			return ErrInvalidTOTPCode
 		}
 	}

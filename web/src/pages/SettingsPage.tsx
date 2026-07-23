@@ -66,19 +66,22 @@ function MFASection({
   onUpdated: () => void
 }) {
   const [setup, setSetup] = useState<{ secret: string; otpauth_url: string } | null>(null)
+  const [enablePassword, setEnablePassword] = useState('')
   const [verifyCode, setVerifyCode] = useState('')
   const [disableCode, setDisableCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  async function handleEnable() {
+  async function handleEnable(e: FormEvent) {
+    e.preventDefault()
     setError(null)
     setMessage(null)
     setSubmitting(true)
     try {
-      const result = await mfaApi.enableMFA()
+      const result = await mfaApi.enableMFA(enablePassword)
       setSetup(result)
+      setEnablePassword('')
     } catch (err) {
       setError(formatRequestError(err, 'Failed to start MFA setup'))
     } finally {
@@ -135,14 +138,24 @@ function MFASection({
       </p>
 
       {!mfaEnabled && !setup && (
-        <button
-          type="button"
-          onClick={() => void handleEnable()}
-          disabled={submitting}
-          className="mt-4 rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
-        >
-          Enable MFA
-        </button>
+        <form onSubmit={(e) => void handleEnable(e)} className="mt-4 flex max-w-md flex-col gap-3">
+          <input
+            type="password"
+            required
+            autoComplete="current-password"
+            placeholder="Account password"
+            value={enablePassword}
+            onChange={(e) => setEnablePassword(e.target.value)}
+            className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+          />
+          <button
+            type="submit"
+            disabled={submitting}
+            className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
+          >
+            Enable MFA
+          </button>
+        </form>
       )}
 
       {setup && (
@@ -214,16 +227,21 @@ function MFASection({
 
 function RecoverySection({ mfaEnabled }: { mfaEnabled: boolean }) {
   const [codes, setCodes] = useState<string[] | null>(null)
+  const [password, setPassword] = useState('')
+  const [totpCode, setTotpCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  async function handleGenerate() {
+  async function handleGenerate(e: FormEvent) {
+    e.preventDefault()
     if (!window.confirm('This replaces any existing recovery codes. Continue?')) return
     setError(null)
     setSubmitting(true)
     try {
-      const result = await recoveryApi.generateRecoveryCodes()
+      const result = await recoveryApi.generateRecoveryCodes(password, totpCode)
       setCodes(result.recovery_codes)
+      setPassword('')
+      setTotpCode('')
     } catch (err) {
       setError(formatRequestError(err, 'Failed to generate recovery codes'))
     } finally {
@@ -234,19 +252,38 @@ function RecoverySection({ mfaEnabled }: { mfaEnabled: boolean }) {
   return (
     <Section
       title="Recovery codes"
-      description="One-time codes to sign in when you cannot use your authenticator. MFA must be enabled."
+      description="One-time codes to sign in when you cannot use your authenticator. MFA must be enabled. Generating codes requires your password and a current authenticator code."
     >
       {!mfaEnabled ? (
         <p className="text-sm text-slate-400">Enable MFA first to generate recovery codes.</p>
       ) : (
-        <button
-          type="button"
-          onClick={() => void handleGenerate()}
-          disabled={submitting}
-          className="rounded-md border border-slate-700 px-4 py-2 text-sm hover:bg-slate-800 disabled:opacity-60"
-        >
-          {submitting ? 'Generating…' : 'Generate new codes'}
-        </button>
+        <form onSubmit={(e) => void handleGenerate(e)} className="mt-2 flex max-w-md flex-col gap-3">
+          <input
+            type="password"
+            required
+            autoComplete="current-password"
+            placeholder="Account password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+          />
+          <input
+            type="text"
+            inputMode="numeric"
+            required
+            placeholder="Authenticator code"
+            value={totpCode}
+            onChange={(e) => setTotpCode(e.target.value)}
+            className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+          />
+          <button
+            type="submit"
+            disabled={submitting}
+            className="rounded-md border border-slate-700 px-4 py-2 text-sm hover:bg-slate-800 disabled:opacity-60"
+          >
+            {submitting ? 'Generating…' : 'Generate new codes'}
+          </button>
+        </form>
       )}
 
       {codes && (
