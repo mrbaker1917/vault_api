@@ -8,6 +8,12 @@ import { ApiError, formatRequestError } from '../api/client'
 import type { Session } from '../api/types'
 import { setMfaEnabledHint } from '../auth/mfa-hint'
 import { useAuth } from '../auth/AuthContext'
+import {
+  getIdleTimeoutPrefs,
+  LOGOUT_OPTIONS,
+  setIdleTimeoutPrefs,
+  VAULT_LOCK_OPTIONS,
+} from '../auth/idle-timeout-prefs'
 import { MfaQrCode } from '../components/MfaQrCode'
 
 export function SettingsPage() {
@@ -27,6 +33,7 @@ export function SettingsPage() {
       </div>
 
       <MFASection mfaEnabled={user?.mfa_enabled ?? false} onUpdated={() => void refreshUser()} />
+      <IdleTimeoutSection />
       <RecoverySection mfaEnabled={user?.mfa_enabled ?? false} />
       <PasswordSection mfaEnabled={user?.mfa_enabled ?? false} />
       <SessionsSection />
@@ -55,6 +62,68 @@ function Section({
       <p className="mt-1 text-sm text-slate-400">{description}</p>
       <div className="mt-4">{children}</div>
     </section>
+  )
+}
+
+function IdleTimeoutSection() {
+  const [prefs, setPrefs] = useState(getIdleTimeoutPrefs)
+  const [message, setMessage] = useState<string | null>(null)
+
+  function handleVaultLockChange(minutes: number) {
+    const next = setIdleTimeoutPrefs({ ...prefs, vaultLockMinutes: minutes })
+    setPrefs(next)
+    setMessage('Idle timeout settings saved.')
+  }
+
+  function handleLogoutChange(minutes: number) {
+    const next = setIdleTimeoutPrefs({ ...prefs, logoutMinutes: minutes })
+    setPrefs(next)
+    setMessage('Idle timeout settings saved.')
+  }
+
+  return (
+    <Section
+      title="Idle timeout"
+      description="Automatically lock the vault and sign out after periods of inactivity. Any mouse, keyboard, scroll, or API activity resets the timers."
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block text-sm">
+          <span className="text-slate-300">Lock vault after</span>
+          <select
+            value={prefs.vaultLockMinutes}
+            onChange={(e) => handleVaultLockChange(Number(e.target.value))}
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+          >
+            {VAULT_LOCK_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block text-sm">
+          <span className="text-slate-300">Sign out after</span>
+          <select
+            value={prefs.logoutMinutes}
+            onChange={(e) => handleLogoutChange(Number(e.target.value))}
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+          >
+            {LOGOUT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {message && (
+        <p className="mt-3 rounded-md border border-emerald-900/50 bg-emerald-950/30 px-3 py-2 text-sm text-emerald-300">
+          {message}
+        </p>
+      )}
+    </Section>
   )
 }
 

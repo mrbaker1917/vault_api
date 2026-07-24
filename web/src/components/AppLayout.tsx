@@ -1,6 +1,7 @@
 import { Link, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { useVault } from '../auth/VaultContext'
+import { IdleTimeoutManager } from './IdleTimeoutManager'
 
 export function AppLayout() {
   const { user, logout } = useAuth()
@@ -15,6 +16,7 @@ export function AppLayout() {
 
   return (
     <div className="min-h-screen">
+      <IdleTimeoutManager />
       <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4">
           <Link to="/" className="text-lg font-semibold text-emerald-400">

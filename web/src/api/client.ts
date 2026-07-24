@@ -5,6 +5,7 @@ import {
   markAccessTokenRefreshed,
   shouldRefreshAccessToken,
 } from '../auth/tokens'
+import { markUserActivity } from '../auth/activity'
 import type { MFARequiredBody } from './types'
 
 export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8081'
@@ -120,6 +121,10 @@ export async function apiFetch(
 
   if (!res.ok) {
     throw await parseApiError(res)
+  }
+
+  if (auth) {
+    markUserActivity()
   }
 
   return res
