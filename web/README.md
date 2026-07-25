@@ -60,7 +60,7 @@ Metadata (`title`, `folder`, `tags`, `item_type`) is stored in plaintext on the 
 
 Settings are at `/settings` and do not require vault unlock.
 
-Idle timeout defaults: lock vault after **15 minutes**, sign out after **30 minutes**. Configure both under Settings → Idle timeout.
+Idle timeout defaults: lock vault after **15 minutes**, sign out after **30 minutes**, and **lock on tab close** (enabled). Configure under Settings → Idle timeout.
 
 ## Phase 4 — Audit, trash, deploy
 

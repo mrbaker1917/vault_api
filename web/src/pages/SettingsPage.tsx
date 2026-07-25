@@ -81,6 +81,12 @@ function IdleTimeoutSection() {
     setMessage('Idle timeout settings saved.')
   }
 
+  function handleLockOnTabCloseChange(enabled: boolean) {
+    const next = setIdleTimeoutPrefs({ ...prefs, lockOnTabClose: enabled })
+    setPrefs(next)
+    setMessage('Idle timeout settings saved.')
+  }
+
   return (
     <Section
       title="Idle timeout"
@@ -117,6 +123,22 @@ function IdleTimeoutSection() {
           </select>
         </label>
       </div>
+
+      <label className="mt-4 flex items-start gap-3 text-sm">
+        <input
+          type="checkbox"
+          checked={prefs.lockOnTabClose}
+          onChange={(e) => handleLockOnTabCloseChange(e.target.checked)}
+          className="mt-1 rounded border-slate-700 bg-slate-950"
+        />
+        <span className="text-slate-300">
+          Lock vault when this tab is closed or refreshed
+          <span className="mt-1 block text-xs text-slate-500">
+            Also locks when returning via the browser back button. Switching to another tab does not
+            lock the vault.
+          </span>
+        </span>
+      </label>
 
       {message && (
         <p className="mt-3 rounded-md border border-emerald-900/50 bg-emerald-950/30 px-3 py-2 text-sm text-emerald-300">

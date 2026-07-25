@@ -39,8 +39,12 @@ describe('idle-timeout-prefs', () => {
   })
 
   it('persists updated preferences', () => {
-    setIdleTimeoutPrefs({ vaultLockMinutes: 30, logoutMinutes: 60 })
-    expect(getIdleTimeoutPrefs()).toEqual({ vaultLockMinutes: 30, logoutMinutes: 60 })
+    setIdleTimeoutPrefs({ vaultLockMinutes: 30, logoutMinutes: 60, lockOnTabClose: false })
+    expect(getIdleTimeoutPrefs()).toEqual({
+      vaultLockMinutes: 30,
+      logoutMinutes: 60,
+      lockOnTabClose: false,
+    })
   })
 
   it('converts minutes to milliseconds', () => {

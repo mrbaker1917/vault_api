@@ -3,11 +3,14 @@ export type IdleTimeoutPrefs = {
   vaultLockMinutes: number
   /** Minutes of inactivity before signing out. 0 = never. */
   logoutMinutes: number
+  /** Lock the vault when the tab is closed, refreshed, or restored from browser cache. */
+  lockOnTabClose: boolean
 }
 
 export const DEFAULT_IDLE_TIMEOUT_PREFS: IdleTimeoutPrefs = {
   vaultLockMinutes: 15,
   logoutMinutes: 30,
+  lockOnTabClose: true,
 }
 
 const STORAGE_KEY = 'vault_idle_timeout_prefs'
@@ -36,8 +39,12 @@ function normalizePrefs(raw: Partial<IdleTimeoutPrefs>): IdleTimeoutPrefs {
   const logoutMinutes = Number.isFinite(raw.logoutMinutes)
     ? Math.max(0, Math.floor(raw.logoutMinutes!))
     : DEFAULT_IDLE_TIMEOUT_PREFS.logoutMinutes
+  const lockOnTabClose =
+    typeof raw.lockOnTabClose === 'boolean'
+      ? raw.lockOnTabClose
+      : DEFAULT_IDLE_TIMEOUT_PREFS.lockOnTabClose
 
-  return { vaultLockMinutes, logoutMinutes }
+  return { vaultLockMinutes, logoutMinutes, lockOnTabClose }
 }
 
 export function getIdleTimeoutPrefs(): IdleTimeoutPrefs {
