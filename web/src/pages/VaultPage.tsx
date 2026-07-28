@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useCallback, useEffect, useState } from 'react'
 import * as vaultApi from '../api/vault'
 import type { VaultItem } from '../api/types'
@@ -15,6 +15,8 @@ type DecryptedVaultItem = VaultItem & {
 
 export function VaultPage() {
   const { encryptItemPayload, decryptItemPayload } = useVault()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const deepLinkItemId = searchParams.get('item')
   const [items, setItems] = useState<DecryptedVaultItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -96,6 +98,38 @@ export function VaultPage() {
     }
     setViewing(item)
   }
+
+  useEffect(() => {
+    if (!deepLinkItemId || loading) {
+      return
+    }
+
+    async function openDeepLinkedItem() {
+      const fromList = items.find((item) => item.ID === deepLinkItemId)
+      if (fromList) {
+        openItem(fromList)
+        setSearchParams({}, { replace: true })
+        return
+      }
+
+      try {
+        const item = await vaultApi.getVaultItem(deepLinkItemId!)
+        let payload: VaultItemPayload | undefined
+        try {
+          payload = await decryptItemPayload(item.EncryptedData)
+        } catch {
+          payload = undefined
+        }
+        openItem({ ...item, payload, decryptFailed: payload == null })
+      } catch {
+        setError('Could not open the linked vault item.')
+      } finally {
+        setSearchParams({}, { replace: true })
+      }
+    }
+
+    void openDeepLinkedItem()
+  }, [deepLinkItemId, loading, items, decryptItemPayload, setSearchParams])
 
   function startEdit(item: DecryptedVaultItem) {
     setViewing(null)

@@ -64,7 +64,7 @@ Idle timeout defaults: lock vault after **15 minutes**, sign out after **30 minu
 
 ## Phase 4 — Audit, trash, deploy
 
-- **Audit log** at `/audit` — paginated activity from `GET /api/v1/audit/logs`
+- **Audit log** at `/audit` — filters, date ranges, grouped timeline, CSV export, vault event links
 - **Trash** at `/trash` — list soft-deleted items and restore them (no vault unlock required)
 - New API: `GET /api/v1/vault/items/deleted`
 

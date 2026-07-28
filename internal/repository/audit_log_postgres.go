@@ -68,6 +68,40 @@ func (r *auditLogPostgresRepository) ListByUserID(ctx context.Context, userID uu
 	return logs, nil
 }
 
+func (r *auditLogPostgresRepository) ListFiltered(ctx context.Context, userID uuid.UUID, filter ListAuditLogsFilter) ([]domain.AuditLog, error) {
+	var since pgtype.Timestamptz
+	if filter.Since != nil {
+		since = pgTimestamptzToPG(*filter.Since)
+	}
+	var until pgtype.Timestamptz
+	if filter.Until != nil {
+		until = pgTimestamptzToPG(*filter.Until)
+	}
+
+	rows, err := r.q.ListAuditLogsFiltered(ctx, sqlc.ListAuditLogsFilteredParams{
+		UserID:  pgUUIDToPG(userID),
+		Column2: filter.ActionPrefix,
+		Column3: filter.Action,
+		Column4: since,
+		Column5: until,
+		Limit:   filter.Limit,
+		Offset:  filter.Offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list filtered audit logs: %w", err)
+	}
+
+	logs := make([]domain.AuditLog, 0, len(rows))
+	for _, row := range rows {
+		entry, err := toDomainAuditLog(row)
+		if err != nil {
+			return nil, fmt.Errorf("list filtered audit logs: %w", err)
+		}
+		logs = append(logs, entry)
+	}
+	return logs, nil
+}
+
 func toDomainAuditLog(row sqlc.AuditLog) (domain.AuditLog, error) {
 	id, err := uuidFromPG(row.ID)
 	if err != nil {

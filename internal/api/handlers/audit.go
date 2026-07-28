@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"vault_api/internal/api/middleware"
@@ -18,6 +20,59 @@ func auditContextFromRequest(r *http.Request) service.AuditContext {
 	}
 }
 
+func parseAuditListFilter(r *http.Request) (service.ListAuditLogsFilter, error) {
+	query := r.URL.Query()
+	filter := service.ListAuditLogsFilter{}
+
+	if category := strings.TrimSpace(query.Get("category")); category != "" {
+		switch category {
+		case "auth", "vault", "mfa", "recovery":
+			filter.ActionPrefix = category + "."
+		default:
+			return service.ListAuditLogsFilter{}, errors.New("invalid category")
+		}
+	}
+
+	if action := strings.TrimSpace(query.Get("action")); action != "" {
+		filter.Action = action
+		filter.ActionPrefix = ""
+	}
+
+	if v := query.Get("since"); v != "" {
+		parsed, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			return service.ListAuditLogsFilter{}, errors.New("invalid since")
+		}
+		filter.Since = &parsed
+	}
+
+	if v := query.Get("until"); v != "" {
+		parsed, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			return service.ListAuditLogsFilter{}, errors.New("invalid until")
+		}
+		filter.Until = &parsed
+	}
+
+	if v := query.Get("limit"); v != "" {
+		parsed, err := strconv.ParseInt(v, 10, 32)
+		if err != nil || parsed <= 0 {
+			return service.ListAuditLogsFilter{}, errors.New("invalid limit")
+		}
+		filter.Limit = int32(parsed)
+	}
+
+	if v := query.Get("offset"); v != "" {
+		parsed, err := strconv.ParseInt(v, 10, 32)
+		if err != nil || parsed < 0 {
+			return service.ListAuditLogsFilter{}, errors.New("invalid offset")
+		}
+		filter.Offset = int32(parsed)
+	}
+
+	return filter, nil
+}
+
 func (h *Handler) ListAuditLogs(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
@@ -25,28 +80,15 @@ func (h *Handler) ListAuditLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	limit := int32(service.DefaultAuditLimit())
-	offset := int32(0)
-	if v := r.URL.Query().Get("limit"); v != "" {
-		parsed, err := strconv.ParseInt(v, 10, 32)
-		if err != nil || parsed <= 0 {
-			http.Error(w, "invalid limit", http.StatusBadRequest)
-			return
-		}
-		limit = int32(parsed)
-	}
-	if v := r.URL.Query().Get("offset"); v != "" {
-		parsed, err := strconv.ParseInt(v, 10, 32)
-		if err != nil || parsed < 0 {
-			http.Error(w, "invalid offset", http.StatusBadRequest)
-			return
-		}
-		offset = int32(parsed)
+	filter, err := parseAuditListFilter(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
-	logs, err := h.auditService.ListLogs(r.Context(), userID, limit, offset)
+	logs, err := h.auditService.ListLogs(r.Context(), userID, filter)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "failed to list audit logs", http.StatusInternalServerError)
 		return
 	}
 

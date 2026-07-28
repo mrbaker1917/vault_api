@@ -66,6 +66,10 @@ func pgTimestampToPtr(t pgtype.Timestamp) *time.Time {
 	return &t.Time
 }
 
+func pgTimestamptzToPG(t time.Time) pgtype.Timestamptz {
+	return pgtype.Timestamptz{Time: t, Valid: true}
+}
+
 func pgUUIDToPG(id uuid.UUID) pgtype.UUID {
 	return pgtype.UUID{Bytes: id, Valid: true}
 }

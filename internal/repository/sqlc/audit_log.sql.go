@@ -96,3 +96,63 @@ func (q *Queries) ListAuditLogsByUserID(ctx context.Context, arg ListAuditLogsBy
 	}
 	return items, nil
 }
+
+const listAuditLogsFiltered = `-- name: ListAuditLogsFiltered :many
+SELECT id, user_id, action, resource_type, resource_id, ip_address, user_agent, metadata, created_at
+FROM audit_log
+WHERE user_id = $1
+  AND (NULLIF($2, '') IS NULL OR action LIKE $2 || '%')
+  AND (NULLIF($3, '') IS NULL OR action = $3)
+  AND ($4::timestamptz IS NULL OR created_at >= $4)
+  AND ($5::timestamptz IS NULL OR created_at <= $5)
+ORDER BY created_at DESC
+LIMIT $6 OFFSET $7
+`
+
+type ListAuditLogsFilteredParams struct {
+	UserID  pgtype.UUID
+	Column2 interface{}
+	Column3 interface{}
+	Column4 pgtype.Timestamptz
+	Column5 pgtype.Timestamptz
+	Limit   int32
+	Offset  int32
+}
+
+func (q *Queries) ListAuditLogsFiltered(ctx context.Context, arg ListAuditLogsFilteredParams) ([]AuditLog, error) {
+	rows, err := q.db.Query(ctx, listAuditLogsFiltered,
+		arg.UserID,
+		arg.Column2,
+		arg.Column3,
+		arg.Column4,
+		arg.Column5,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AuditLog
+	for rows.Next() {
+		var i AuditLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Action,
+			&i.ResourceType,
+			&i.ResourceID,
+			&i.IpAddress,
+			&i.UserAgent,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

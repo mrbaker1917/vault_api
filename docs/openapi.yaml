@@ -826,6 +826,29 @@ paths:
             maximum: 100
             default: 50
         - $ref: "#/components/parameters/Offset"
+        - name: category
+          in: query
+          description: Filter by action category prefix (`auth`, `vault`, `mfa`, `recovery`)
+          schema:
+            type: string
+            enum: [auth, vault, mfa, recovery]
+        - name: action
+          in: query
+          description: Filter by exact audit action (e.g. `auth.login`)
+          schema:
+            type: string
+        - name: since
+          in: query
+          description: Include entries at or after this RFC3339 timestamp
+          schema:
+            type: string
+            format: date-time
+        - name: until
+          in: query
+          description: Include entries at or before this RFC3339 timestamp
+          schema:
+            type: string
+            format: date-time
       responses:
         "200":
           description: Audit log entries for the current user, newest first

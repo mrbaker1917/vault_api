@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"vault_api/internal/domain"
@@ -85,20 +86,36 @@ func (s *AuditService) Log(
 	}
 }
 
-func (s *AuditService) ListLogs(ctx context.Context, userID uuid.UUID, limit, offset int32) ([]domain.AuditLog, error) {
-	if limit <= 0 {
-		limit = defaultAuditLimit
+func (s *AuditService) ListLogs(ctx context.Context, userID uuid.UUID, filter ListAuditLogsFilter) ([]domain.AuditLog, error) {
+	if filter.Limit <= 0 {
+		filter.Limit = defaultAuditLimit
 	}
-	if limit > maxAuditLimit {
-		limit = maxAuditLimit
+	if filter.Limit > maxAuditLimit {
+		filter.Limit = maxAuditLimit
 	}
-	if offset < 0 {
-		offset = 0
+	if filter.Offset < 0 {
+		filter.Offset = 0
 	}
 
-	logs, err := s.auditLogs.ListByUserID(ctx, userID, limit, offset)
+	logs, err := s.auditLogs.ListFiltered(ctx, userID, repository.ListAuditLogsFilter{
+		ActionPrefix: filter.ActionPrefix,
+		Action:       filter.Action,
+		Since:        filter.Since,
+		Until:        filter.Until,
+		Limit:        filter.Limit,
+		Offset:       filter.Offset,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("list audit logs: %w", err)
 	}
 	return logs, nil
+}
+
+type ListAuditLogsFilter struct {
+	ActionPrefix string
+	Action       string
+	Since        *time.Time
+	Until        *time.Time
+	Limit        int32
+	Offset       int32
 }
