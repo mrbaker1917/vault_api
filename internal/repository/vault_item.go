@@ -15,6 +15,7 @@ type VaultItemRepository interface {
 	Update(ctx context.Context, item domain.VaultItem) (domain.VaultItem, error)
 	Delete(ctx context.Context, id uuid.UUID, version int32) (domain.VaultItem, error)
 	Restore(ctx context.Context, id uuid.UUID, version int32, userID uuid.UUID) (domain.VaultItem, error)
+	PurgeSoftDeleted(ctx context.Context, retentionDays int32) (int64, error)
 }
 
 type ListVaultItemsFilter struct {

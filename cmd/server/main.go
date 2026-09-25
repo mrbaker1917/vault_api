@@ -14,6 +14,7 @@ import (
 
 	"vault_api/internal/api"
 	"vault_api/internal/config"
+	"vault_api/internal/crypto"
 	"vault_api/internal/repository"
 )
 
@@ -59,6 +60,7 @@ func main() {
 				SharedVaultItems:   repository.NewSharedVaultItemRepository(pg),
 				DB:                 pg,
 				CORSAllowedOrigins: cfg.CORSAllowedOrigins,
+				PasswordChecker:    crypto.NewHIBPPasswordBreachChecker(nil),
 			}, nil
 		},
 		api.NewRouter,

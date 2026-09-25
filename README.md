@@ -29,6 +29,13 @@ export PORT=8081
 go run ./cmd/server
 ```
 
+Purge soft-deleted vault items older than 30 days (for cron):
+
+```bash
+go run ./cmd/purge
+# optional: PURGE_RETENTION_DAYS=30
+```
+
 Health checks:
 
 - `GET /health` — liveness
@@ -68,16 +75,13 @@ The React app runs at [http://localhost:5173](http://localhost:5173). See [web/R
 | **Vault** | CRUD, pagination, filtering, optimistic locking, soft delete / restore |
 | **Sharing** | Share items by email with client-wrapped keys (`read` / `write`) |
 | **Audit** | Append-only log of sensitive operations |
-| **Security** | Argon2id passwords, rate-limited auth, encrypted blob validation |
+| **Security** | Argon2id passwords, rate-limited auth, encrypted blob validation, password strength + HIBP breach checks, shared write enforcement |
 | **Ops** | JSON logging, `/health`, `/ready`, Prometheus `/metrics`, Docker, GitHub Actions CI |
 | **Web UI** | React app in `web/` — auth, encrypted vault CRUD, MFA, recovery, sessions, settings, audit log, trash restore |
 
 ### Planned / not yet implemented
 
 - Vault key re-wrapping API (client-driven master password change)
-- Automated purge of soft-deleted items after 30 days
-- Breach-aware password checks (e.g. HIBP)
-- Shared-user `write` permission enforcement on vault updates
 - Redis-backed sessions / distributed rate limiting (Redis is in Compose but unused)
 - Auto-migrations on app startup
 - Demo client (CLI or web) showing client-side encryption
@@ -120,7 +124,8 @@ Protected routes require `Authorization: Bearer <access_token>`.
 
 ```
 vault_api/
-├── cmd/server/           # Entry point
+├── cmd/server/           # API entry point
+├── cmd/purge/            # Soft-delete purge job (cron)
 ├── internal/
 │   ├── api/              # Router, handlers, middleware
 │   ├── service/          # Business logic

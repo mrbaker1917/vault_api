@@ -156,13 +156,13 @@ func (s *stubAuthSessionRepo) RevokeAllExcept(_ context.Context, userID, exceptS
 func TestAuthServiceChangePassword(t *testing.T) {
 	users := newStubAuthUserRepo()
 	sessions := newStubAuthSessionRepo()
-	svc := NewAuthService(users, sessions, "test-secret", nil)
+	svc := NewAuthService(users, sessions, "test-secret", nil, nil)
 
 	userID := uuid.New()
 	currentSessionID := uuid.New()
 	otherSessionID := uuid.New()
 
-	hash, err := crypto.HashPassword("old-password")
+	hash, err := crypto.HashPassword("Old-Password12")
 	if err != nil {
 		t.Fatalf("hash password: %v", err)
 	}
@@ -174,12 +174,12 @@ func TestAuthServiceChangePassword(t *testing.T) {
 	sessions.sessions[currentSessionID] = domain.Session{ID: currentSessionID, UserID: userID}
 	sessions.sessions[otherSessionID] = domain.Session{ID: otherSessionID, UserID: userID}
 
-	err = svc.ChangePassword(context.Background(), userID, currentSessionID, "old-password", "new-password-456", "", AuditContext{})
+	err = svc.ChangePassword(context.Background(), userID, currentSessionID, "Old-Password12", "New-Password456", "", AuditContext{})
 	if err != nil {
 		t.Fatalf("change password: %v", err)
 	}
 
-	ok, err := crypto.CheckPasswordHash("new-password-456", users.users[userID].PasswordHash)
+	ok, err := crypto.CheckPasswordHash("New-Password456", users.users[userID].PasswordHash)
 	if err != nil || !ok {
 		t.Fatal("expected updated password hash to match new password")
 	}
@@ -197,16 +197,16 @@ func TestAuthServiceChangePassword(t *testing.T) {
 func TestAuthServiceChangePasswordRejectsWrongCurrentPassword(t *testing.T) {
 	users := newStubAuthUserRepo()
 	sessions := newStubAuthSessionRepo()
-	svc := NewAuthService(users, sessions, "test-secret", nil)
+	svc := NewAuthService(users, sessions, "test-secret", nil, nil)
 
 	userID := uuid.New()
-	hash, err := crypto.HashPassword("old-password")
+	hash, err := crypto.HashPassword("Old-Password12")
 	if err != nil {
 		t.Fatalf("hash password: %v", err)
 	}
 	users.users[userID] = domain.User{ID: userID, PasswordHash: hash}
 
-	err = svc.ChangePassword(context.Background(), userID, uuid.New(), "wrong-password", "new-password-456", "", AuditContext{})
+	err = svc.ChangePassword(context.Background(), userID, uuid.New(), "Wrong-Password1", "New-Password456", "", AuditContext{})
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
 	}
@@ -215,17 +215,68 @@ func TestAuthServiceChangePasswordRejectsWrongCurrentPassword(t *testing.T) {
 func TestAuthServiceChangePasswordRejectsUnchangedPassword(t *testing.T) {
 	users := newStubAuthUserRepo()
 	sessions := newStubAuthSessionRepo()
-	svc := NewAuthService(users, sessions, "test-secret", nil)
+	svc := NewAuthService(users, sessions, "test-secret", nil, nil)
 
 	userID := uuid.New()
-	hash, err := crypto.HashPassword("same-password")
+	hash, err := crypto.HashPassword("Same-Password1")
 	if err != nil {
 		t.Fatalf("hash password: %v", err)
 	}
 	users.users[userID] = domain.User{ID: userID, PasswordHash: hash}
 
-	err = svc.ChangePassword(context.Background(), userID, uuid.New(), "same-password", "same-password", "", AuditContext{})
+	err = svc.ChangePassword(context.Background(), userID, uuid.New(), "Same-Password1", "Same-Password1", "", AuditContext{})
 	if !errors.Is(err, ErrPasswordUnchanged) {
 		t.Fatalf("expected ErrPasswordUnchanged, got %v", err)
+	}
+}
+
+type stubPasswordChecker struct {
+	breached bool
+	err      error
+}
+
+func (s stubPasswordChecker) IsBreached(_ context.Context, _ string) (bool, error) {
+	return s.breached, s.err
+}
+
+func TestAuthServiceSignupRejectsWeakPassword(t *testing.T) {
+	svc := NewAuthService(newStubAuthUserRepo(), newStubAuthSessionRepo(), "test-secret", nil, nil)
+
+	_, err := svc.Signup(context.Background(), "user@example.com", "short", AuditContext{})
+	if !errors.Is(err, crypto.ErrWeakPassword) {
+		t.Fatalf("expected ErrWeakPassword, got %v", err)
+	}
+}
+
+func TestAuthServiceSignupRejectsCompromisedPassword(t *testing.T) {
+	svc := NewAuthService(
+		newStubAuthUserRepo(),
+		newStubAuthSessionRepo(),
+		"test-secret",
+		nil,
+		stubPasswordChecker{breached: true},
+	)
+
+	_, err := svc.Signup(context.Background(), "user@example.com", "StrongPass123", AuditContext{})
+	if !errors.Is(err, ErrCompromisedPassword) {
+		t.Fatalf("expected ErrCompromisedPassword, got %v", err)
+	}
+}
+
+func TestAuthServiceSignupAllowsPasswordWhenBreachCheckFails(t *testing.T) {
+	svc := NewAuthService(
+		newStubAuthUserRepo(),
+		newStubAuthSessionRepo(),
+		"test-secret",
+		nil,
+		stubPasswordChecker{err: errors.New("hibp unavailable")},
+	)
+
+	user, err := svc.Signup(context.Background(), "user@example.com", "StrongPass123", AuditContext{})
+	if err != nil {
+		t.Fatalf("expected signup to succeed when breach check fails, got %v", err)
+	}
+	if user.Email != "user@example.com" {
+		t.Fatalf("expected user email, got %q", user.Email)
 	}
 }

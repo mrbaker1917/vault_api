@@ -109,6 +109,18 @@ func (s *stubVaultItemRepo) Delete(_ context.Context, id uuid.UUID, version int3
 	return item, nil
 }
 
+func (s *stubVaultItemRepo) PurgeSoftDeleted(_ context.Context, retentionDays int32) (int64, error) {
+	cutoff := time.Now().Add(-time.Duration(retentionDays) * 24 * time.Hour)
+	var deleted int64
+	for id, item := range s.items {
+		if item.DeletedAt != nil && item.DeletedAt.Before(cutoff) {
+			delete(s.items, id)
+			deleted++
+		}
+	}
+	return deleted, nil
+}
+
 func (s *stubVaultItemRepo) Restore(_ context.Context, id uuid.UUID, version int32, userID uuid.UUID) (domain.VaultItem, error) {
 	item, ok := s.items[id]
 	if !ok || item.UserID != userID || item.DeletedAt == nil || item.Version != version {
@@ -210,6 +222,40 @@ func TestVaultServiceCreateGetUpdateDeleteRestore(t *testing.T) {
 	if restored.Version != deleted.Version+1 {
 		t.Fatalf("expected version %d, got %d", deleted.Version+1, restored.Version)
 	}
+}
+
+func TestVaultServicePurgeSoftDeleted(t *testing.T) {
+	repo := newStubVaultItemRepo()
+	svc := NewVaultService(repo, nil, nil, nil)
+	userID := uuid.New()
+
+	oldDeletedAt := time.Now().Add(-31 * 24 * time.Hour)
+	recentDeletedAt := time.Now().Add(-5 * 24 * time.Hour)
+	oldID := uuid.New()
+	recentID := uuid.New()
+	repo.items[oldID] = domain.VaultItem{
+		ID: oldID, UserID: userID, ItemType: "login",
+		EncryptedData: validEncryptedBlob(), DeletedAt: &oldDeletedAt,
+	}
+	repo.items[recentID] = domain.VaultItem{
+		ID: recentID, UserID: userID, ItemType: "login",
+		EncryptedData: validEncryptedBlob(0x01), DeletedAt: &recentDeletedAt,
+	}
+
+	deleted, err := repo.PurgeSoftDeleted(context.Background(), 30)
+	if err != nil {
+		t.Fatalf("purge: %v", err)
+	}
+	if deleted != 1 {
+		t.Fatalf("expected 1 purged item, got %d", deleted)
+	}
+	if _, ok := repo.items[oldID]; ok {
+		t.Fatal("expected old deleted item to be purged")
+	}
+	if _, ok := repo.items[recentID]; !ok {
+		t.Fatal("expected recent deleted item to remain")
+	}
+	_ = svc
 }
 
 func TestVaultServiceListItemsAppliesDefaultLimit(t *testing.T) {

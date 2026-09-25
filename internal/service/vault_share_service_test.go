@@ -227,6 +227,72 @@ func TestVaultServiceShareItemRejectsEmptyKey(t *testing.T) {
 	}
 }
 
+func TestVaultServiceUpdateItemEnforcesSharePermission(t *testing.T) {
+	vaultRepo := newStubVaultItemRepo()
+	shareRepo := newStubSharedVaultItemRepo()
+	userRepo := newStubUserRepo()
+	svc := NewVaultService(vaultRepo, shareRepo, userRepo, nil)
+
+	ownerID := uuid.New()
+	readRecipientID := uuid.New()
+	writeRecipientID := uuid.New()
+	userRepo.users[ownerID] = domain.User{ID: ownerID, Email: "owner@example.com"}
+	userRepo.users[readRecipientID] = domain.User{ID: readRecipientID, Email: "read@example.com"}
+	userRepo.users[writeRecipientID] = domain.User{ID: writeRecipientID, Email: "write@example.com"}
+
+	item, err := svc.CreateItem(context.Background(), ownerID, AuditContext{}, CreateVaultItemInput{
+		EncryptedData: validEncryptedBlob(),
+		ItemType:      "login",
+		Title:         "Shared Item",
+	})
+	if err != nil {
+		t.Fatalf("create item: %v", err)
+	}
+
+	readShare, err := svc.ShareItem(context.Background(), ownerID, item.ID, AuditContext{}, ShareVaultItemInput{
+		Email:            "read@example.com",
+		EncryptedItemKey: []byte("wrapped-key"),
+		Permission:       domain.SharePermissionRead,
+	})
+	if err != nil {
+		t.Fatalf("share read: %v", err)
+	}
+	_ = readShare
+
+	writeShare, err := svc.ShareItem(context.Background(), ownerID, item.ID, AuditContext{}, ShareVaultItemInput{
+		Email:            "write@example.com",
+		EncryptedItemKey: []byte("wrapped-key"),
+		Permission:       domain.SharePermissionWrite,
+	})
+	if err != nil {
+		t.Fatalf("share write: %v", err)
+	}
+	_ = writeShare
+
+	_, err = svc.UpdateItem(context.Background(), readRecipientID, item.ID, AuditContext{}, UpdateVaultItemInput{
+		EncryptedData: validEncryptedBlob(0x01),
+		ItemType:      "login",
+		Title:         "Blocked Update",
+		Version:       1,
+	})
+	if !errors.Is(err, ErrShareReadOnly) {
+		t.Fatalf("expected ErrShareReadOnly, got %v", err)
+	}
+
+	updated, err := svc.UpdateItem(context.Background(), writeRecipientID, item.ID, AuditContext{}, UpdateVaultItemInput{
+		EncryptedData: validEncryptedBlob(0x02),
+		ItemType:      "login",
+		Title:         "Allowed Update",
+		Version:       1,
+	})
+	if err != nil {
+		t.Fatalf("update with write permission: %v", err)
+	}
+	if updated.Title != "Allowed Update" {
+		t.Fatalf("expected updated title, got %q", updated.Title)
+	}
+}
+
 func TestVaultServiceRevokeShareNotFound(t *testing.T) {
 	vaultRepo := newStubVaultItemRepo()
 	svc := NewVaultService(vaultRepo, newStubSharedVaultItemRepo(), newStubUserRepo(), nil)

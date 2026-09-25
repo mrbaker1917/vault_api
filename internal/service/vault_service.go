@@ -94,6 +94,31 @@ func (s *VaultService) CreateItem(ctx context.Context, userID uuid.UUID, audit A
 	return item, nil
 }
 
+func (s *VaultService) assertCanModifyItem(ctx context.Context, userID, itemID uuid.UUID) (domain.VaultItem, error) {
+	item, err := s.vaultItems.GetByID(ctx, itemID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return domain.VaultItem{}, ErrNotFound
+		}
+		return domain.VaultItem{}, fmt.Errorf("get vault item: %w", err)
+	}
+	if item.UserID == userID {
+		return item, nil
+	}
+
+	share, err := s.sharedItems.GetByVaultAndRecipient(ctx, itemID, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return domain.VaultItem{}, ErrNotFound
+		}
+		return domain.VaultItem{}, fmt.Errorf("get share: %w", err)
+	}
+	if share.Permission != domain.SharePermissionWrite {
+		return domain.VaultItem{}, ErrShareReadOnly
+	}
+	return item, nil
+}
+
 func (s *VaultService) GetItem(ctx context.Context, userID, itemID uuid.UUID) (domain.VaultItem, error) {
 	item, err := s.vaultItems.GetByID(ctx, itemID)
 	if err != nil {
@@ -177,7 +202,7 @@ func (s *VaultService) UpdateItem(ctx context.Context, userID, itemID uuid.UUID,
 		return domain.VaultItem{}, fmt.Errorf("%w: %w", ErrInvalidEncryptedBlob, err)
 	}
 
-	if _, err := s.GetItem(ctx, userID, itemID); err != nil {
+	if _, err := s.assertCanModifyItem(ctx, userID, itemID); err != nil {
 		return domain.VaultItem{}, err
 	}
 	item, err := s.vaultItems.Update(ctx, domain.VaultItem{

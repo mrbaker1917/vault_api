@@ -35,8 +35,8 @@ func TestIntegrationChangePassword(t *testing.T) {
 	defer cleanup()
 
 	email := fmt.Sprintf("pwd-%d@example.com", time.Now().UnixNano())
-	oldPassword := "secure-password-123"
-	newPassword := "new-secure-password-456"
+	oldPassword := "Secure-Password123"
+	newPassword := "New-Secure-Password456"
 	token := signupAndLoginWithCredentials(t, handler, email, oldPassword)
 
 	change := integration.DoJSON(t, handler, integration.JSONRequest{
@@ -82,7 +82,7 @@ func TestIntegrationAuthSignupLoginLogout(t *testing.T) {
 	defer cleanup()
 
 	email := fmt.Sprintf("auth-%d@example.com", time.Now().UnixNano())
-	password := "secure-password-123"
+	password := "Secure-Password123"
 
 	signup := integration.DoJSON(t, handler, integration.JSONRequest{
 		Method: http.MethodPost,
@@ -323,7 +323,7 @@ func TestIntegrationVaultSharing(t *testing.T) {
 
 	ownerEmail := fmt.Sprintf("owner-%d@example.com", time.Now().UnixNano())
 	recipientEmail := fmt.Sprintf("recipient-%d@example.com", time.Now().UnixNano())
-	password := "secure-password-123"
+	password := "Secure-Password123"
 
 	ownerToken := signupAndLoginWithCredentials(t, handler, ownerEmail, password)
 	recipientToken := signupAndLoginWithCredentials(t, handler, recipientEmail, password)
@@ -449,7 +449,7 @@ func TestIntegrationMFAFlow(t *testing.T) {
 	defer cleanup()
 
 	email := fmt.Sprintf("mfa-%d@example.com", time.Now().UnixNano())
-	password := "secure-password-123"
+	password := "Secure-Password123"
 	token := signupAndLoginWithCredentials(t, handler, email, password)
 
 	enable := integration.DoJSON(t, handler, integration.JSONRequest{
@@ -603,7 +603,7 @@ func TestIntegrationAuditLogs(t *testing.T) {
 func signupAndLogin(t *testing.T, handler http.Handler, prefix string) string {
 	t.Helper()
 	email := fmt.Sprintf("%s-%d@example.com", prefix, time.Now().UnixNano())
-	return signupAndLoginWithCredentials(t, handler, email, "secure-password-123")
+	return signupAndLoginWithCredentials(t, handler, email, "Secure-Password123")
 }
 
 func signupAndLoginWithCredentials(t *testing.T, handler http.Handler, email, password string) string {

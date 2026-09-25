@@ -313,6 +313,20 @@ func (q *Queries) ListVaultItemsFiltered(ctx context.Context, arg ListVaultItems
 	return items, nil
 }
 
+const purgeSoftDeletedVaultItems = `-- name: PurgeSoftDeletedVaultItems :execrows
+DELETE FROM vault_items
+WHERE deleted_at IS NOT NULL
+  AND deleted_at < NOW() - ($1 * INTERVAL '1 day')
+`
+
+func (q *Queries) PurgeSoftDeletedVaultItems(ctx context.Context, dollar_1 interface{}) (int64, error) {
+	result, err := q.db.Exec(ctx, purgeSoftDeletedVaultItems, dollar_1)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const restoreVaultItem = `-- name: RestoreVaultItem :one
 UPDATE vault_items
 SET deleted_at = NULL, version = version + 1

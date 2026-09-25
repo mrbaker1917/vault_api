@@ -2,14 +2,16 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"errors"
-	"time"
+	"fmt"
+	"log/slog"
 	"strings"
+	"time"
+
+	"github.com/google/uuid"
 	"vault_api/internal/crypto"
 	"vault_api/internal/domain"
 	"vault_api/internal/repository"
-	"github.com/google/uuid"
 )
 
 var ErrInvalidCredentials = errors.New("invalid credentials")
@@ -19,19 +21,46 @@ var ErrPasswordUnchanged = errors.New("new password must differ from current pas
 const accessTokenTTL = 15 * time.Minute
 
 type AuthService struct {
-	users     repository.UserRepository
-	sessions  repository.SessionRepository
-	jwtSecret string
-	audit     *AuditService
+	users           repository.UserRepository
+	sessions        repository.SessionRepository
+	jwtSecret       string
+	audit           *AuditService
+	passwordChecker crypto.PasswordBreachChecker
 }
 
-func NewAuthService(users repository.UserRepository, sessions repository.SessionRepository, jwtSecret string, audit *AuditService) *AuthService {
+func NewAuthService(
+	users repository.UserRepository,
+	sessions repository.SessionRepository,
+	jwtSecret string,
+	audit *AuditService,
+	passwordChecker crypto.PasswordBreachChecker,
+) *AuthService {
 	return &AuthService{
-		users:     users,
-		sessions:  sessions,
-		jwtSecret: jwtSecret,
-		audit:     audit,
+		users:           users,
+		sessions:        sessions,
+		jwtSecret:       jwtSecret,
+		audit:           audit,
+		passwordChecker: passwordChecker,
 	}
+}
+
+func (s *AuthService) validateNewPassword(ctx context.Context, password string) error {
+	if err := crypto.ValidatePasswordStrength(password); err != nil {
+		return err
+	}
+	if s.passwordChecker == nil {
+		return nil
+	}
+
+	breached, err := s.passwordChecker.IsBreached(ctx, password)
+	if err != nil {
+		slog.Warn("password breach check failed; allowing signup", "error", err)
+		return nil
+	}
+	if breached {
+		return ErrCompromisedPassword
+	}
+	return nil
 }
 
 func (s *AuthService) GetProfile(ctx context.Context, userID uuid.UUID) (domain.User, error) {
@@ -46,6 +75,10 @@ func (s *AuthService) GetProfile(ctx context.Context, userID uuid.UUID) (domain.
 }
 
 func (s *AuthService) Signup(ctx context.Context, email, password string, audit AuditContext) (domain.User, error) {
+	if err := s.validateNewPassword(ctx, password); err != nil {
+		return domain.User{}, err
+	}
+
 	hashPassword, err := crypto.HashPassword(password)
 	if err != nil {
 		return domain.User{}, fmt.Errorf("hash password: %w", err)
@@ -266,6 +299,10 @@ func (s *AuthService) ChangePassword(
 	}
 	if !ok {
 		return ErrInvalidCredentials
+	}
+
+	if err := s.validateNewPassword(ctx, newPassword); err != nil {
+		return err
 	}
 
 	if user.MfaEnabled {

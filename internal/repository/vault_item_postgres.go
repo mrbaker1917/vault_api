@@ -228,6 +228,14 @@ func (r *vaultItemPostgresRepository) Delete(ctx context.Context, id uuid.UUID, 
 	return toDomainVaultItem(vaultItemRow), nil
 }
 
+func (r *vaultItemPostgresRepository) PurgeSoftDeleted(ctx context.Context, retentionDays int32) (int64, error) {
+	deleted, err := r.q.PurgeSoftDeletedVaultItems(ctx, retentionDays)
+	if err != nil {
+		return 0, fmt.Errorf("purge soft-deleted vault items: %w", err)
+	}
+	return deleted, nil
+}
+
 func (r *vaultItemPostgresRepository) Restore(ctx context.Context, id uuid.UUID, version int32, userID uuid.UUID) (domain.VaultItem, error) {
 	row, err := r.q.RestoreVaultItem(ctx, sqlc.RestoreVaultItemParams{
 		ID:      pgUUIDToPG(id),

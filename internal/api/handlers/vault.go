@@ -190,6 +190,10 @@ func (h *Handler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "item not found", http.StatusNotFound)
 			return
 		}
+		if errors.Is(err, service.ErrShareReadOnly) {
+			http.Error(w, "share permission is read-only", http.StatusForbidden)
+			return
+		}
 		http.Error(w, "failed to update item", http.StatusInternalServerError)
 		return
 	}

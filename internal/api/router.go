@@ -2,12 +2,13 @@ package api
 
 import (
 	"net/http"
-	"vault_api/internal/service"
-	"vault_api/internal/api/handlers"
-	"vault_api/internal/repository"
-	"vault_api/internal/api/middleware"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"vault_api/internal/api/handlers"
+	"vault_api/internal/api/middleware"
+	"vault_api/internal/crypto"
+	"vault_api/internal/repository"
+	"vault_api/internal/service"
 )
 
 type Deps struct {
@@ -20,6 +21,7 @@ type Deps struct {
 	SharedVaultItems   repository.SharedVaultItemRepository
 	DB                 DBPing
 	CORSAllowedOrigins []string
+	PasswordChecker    crypto.PasswordBreachChecker
 }
 
 func NewRouter(deps Deps) http.Handler {
@@ -28,7 +30,7 @@ func NewRouter(deps Deps) http.Handler {
 	mux.HandleFunc("GET /ready", readyHandler(deps.DB))
 	mux.Handle("GET /metrics", promhttp.Handler())
 	audit := service.NewAuditService(deps.AuditLogs)
-	auth := service.NewAuthService(deps.Users, deps.Sessions, deps.JWTSecret, audit)
+	auth := service.NewAuthService(deps.Users, deps.Sessions, deps.JWTSecret, audit, deps.PasswordChecker)
 	vault := service.NewVaultService(deps.VaultItems, deps.SharedVaultItems, deps.Users, audit)
 	mfa := service.NewMFAService(deps.Users, deps.RecoveryCodes, deps.JWTSecret, audit)
 	recovery := service.NewRecoveryService(deps.Users, deps.RecoveryCodes, auth, audit)

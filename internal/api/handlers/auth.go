@@ -8,9 +8,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"vault_api/internal/service"
 	"vault_api/internal/api/middleware"
+	"vault_api/internal/crypto"
 	"vault_api/internal/requestmeta"
+	"vault_api/internal/service"
 )
 
 type Handler struct {
@@ -48,11 +49,16 @@ func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.authService.Signup(r.Context(), req.Email, req.Password, auditContextFromRequest(r))
 	if err != nil {
-		if errors.Is(err, service.ErrEmailAlreadyExists) {
+		switch {
+		case errors.Is(err, service.ErrEmailAlreadyExists):
 			http.Error(w, "email already exists", http.StatusConflict)
-			return
+		case errors.Is(err, crypto.ErrWeakPassword):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		case errors.Is(err, service.ErrCompromisedPassword):
+			http.Error(w, "password has appeared in a data breach", http.StatusBadRequest)
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -225,6 +231,10 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		case errors.Is(err, service.ErrPasswordUnchanged):
 			http.Error(w, "new password must differ from current password", http.StatusBadRequest)
+		case errors.Is(err, crypto.ErrWeakPassword):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		case errors.Is(err, service.ErrCompromisedPassword):
+			http.Error(w, "password has appeared in a data breach", http.StatusBadRequest)
 		case errors.Is(err, service.ErrMFARequired):
 			writeJSON(w, http.StatusUnauthorized, map[string]any{
 				"error":        "mfa required",

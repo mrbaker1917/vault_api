@@ -76,3 +76,8 @@ SELECT COUNT(*)
 FROM vault_items
 WHERE user_id = $1
   AND deleted_at IS NOT NULL;
+
+-- name: PurgeSoftDeletedVaultItems :execrows
+DELETE FROM vault_items
+WHERE deleted_at IS NOT NULL
+  AND deleted_at < NOW() - ($1 * INTERVAL '1 day');
