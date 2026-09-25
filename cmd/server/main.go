@@ -20,6 +20,7 @@ import (
 	redisclient "vault_api/internal/redis"
 	"vault_api/internal/ratelimit"
 	"vault_api/internal/repository"
+	"vault_api/internal/sessioncache"
 )
 
 type dbConnection interface {
@@ -66,9 +67,17 @@ func main() {
 				authLimiter = ratelimit.NewMemoryLimiter(ratelimit.DefaultAuthLimit, ratelimit.DefaultAuthWindow)
 			}
 
+			sessions := repository.NewSessionRepository(pg)
+			if redisClient != nil {
+				sessions = repository.NewCachedSessionRepository(
+					sessions,
+					sessioncache.New(redisClient, sessioncache.DefaultTTL),
+				)
+			}
+
 			return api.Deps{
 				Users:              repository.NewUserRepository(pg),
-				Sessions:           repository.NewSessionRepository(pg),
+				Sessions:           sessions,
 				RecoveryCodes:      repository.NewRecoveryCodeRepository(pg),
 				AuditLogs:          repository.NewAuditLogRepository(pg),
 				JWTSecret:          cfg.JWTSecret,
