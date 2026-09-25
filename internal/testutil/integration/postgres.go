@@ -19,7 +19,6 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"vault_api/internal/api"
-	"vault_api/internal/api/middleware"
 	"vault_api/internal/repository"
 )
 
@@ -37,8 +36,6 @@ func NewTestRouter(t *testing.T) (http.Handler, func()) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-
-	middleware.ResetAuthRateLimiterForTests()
 
 	connStr, cleanupDB, ok := resolveDatabaseURL(t)
 	if !ok {

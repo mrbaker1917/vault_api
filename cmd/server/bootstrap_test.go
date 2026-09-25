@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/redis/go-redis/v9"
 	"vault_api/internal/api"
 	"vault_api/internal/config"
 )
@@ -183,7 +184,7 @@ func TestRunBootstrapsDBAndRouterWithoutLiveDatabase(t *testing.T) {
 			connected = true
 			return stubDB, nil
 		},
-		func(_ dbConnection) (api.Deps, error) {
+		func(_ dbConnection, _ *redis.Client) (api.Deps, error) {
 			return api.Deps{JWTSecret: "test-secret"}, nil
 		},
 		api.NewRouter,
@@ -235,7 +236,7 @@ func TestRunReturnsWrappedErrorWhenDBInitializationFails(t *testing.T) {
 		func(_ context.Context, _ string) (dbConnection, error) {
 			return nil, expectedErr
 		},
-		func(_ dbConnection) (api.Deps, error) {
+		func(_ dbConnection, _ *redis.Client) (api.Deps, error) {
 			return api.Deps{JWTSecret: "test-secret"}, nil
 		},
 		api.NewRouter,

@@ -21,7 +21,7 @@ func TestReadyHandlerWithoutDatabase(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
 	rec := httptest.NewRecorder()
 
-	readyHandler(nil).ServeHTTP(rec, req)
+	readyHandler(nil, nil).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected status %d, got %d", http.StatusServiceUnavailable, rec.Code)
@@ -32,7 +32,7 @@ func TestReadyHandlerWithDatabaseError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
 	rec := httptest.NewRecorder()
 
-	readyHandler(stubDBPing{err: errors.New("ping failed")}).ServeHTTP(rec, req)
+	readyHandler(stubDBPing{err: errors.New("ping failed")}, nil).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected status %d, got %d", http.StatusServiceUnavailable, rec.Code)
@@ -43,7 +43,7 @@ func TestReadyHandlerWithHealthyDatabase(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
 	rec := httptest.NewRecorder()
 
-	readyHandler(stubDBPing{}).ServeHTTP(rec, req)
+	readyHandler(stubDBPing{}, nil).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)

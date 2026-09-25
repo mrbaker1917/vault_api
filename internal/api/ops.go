@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 // DBPing checks database connectivity for readiness probes.
@@ -18,7 +20,7 @@ func healthHandler() http.HandlerFunc {
 	}
 }
 
-func readyHandler(db DBPing) http.HandlerFunc {
+func readyHandler(db DBPing, redisClient *redis.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if db == nil {
 			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
@@ -31,6 +33,13 @@ func readyHandler(db DBPing) http.HandlerFunc {
 		if err := db.Ping(ctx); err != nil {
 			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
 			return
+		}
+
+		if redisClient != nil {
+			if err := redisClient.Ping(ctx).Err(); err != nil {
+				http.Error(w, "redis unavailable", http.StatusServiceUnavailable)
+				return
+			}
 		}
 
 		w.WriteHeader(http.StatusOK)

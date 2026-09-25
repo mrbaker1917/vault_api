@@ -75,14 +75,14 @@ The React app runs at [http://localhost:5173](http://localhost:5173). See [web/R
 | **Vault** | CRUD, pagination, filtering, optimistic locking, soft delete / restore |
 | **Sharing** | Share items by email with client-wrapped keys (`read` / `write`) |
 | **Audit** | Append-only log of sensitive operations |
-| **Security** | Argon2id passwords, rate-limited auth, encrypted blob validation, password strength + HIBP breach checks, shared write enforcement |
+| **Security** | Argon2id passwords, Redis-backed distributed auth rate limiting, encrypted blob validation, password strength + HIBP breach checks, shared write enforcement |
 | **Ops** | JSON logging, `/health`, `/ready`, Prometheus `/metrics`, Docker, GitHub Actions CI |
 | **Web UI** | React app in `web/` — auth, encrypted vault CRUD, MFA, recovery, sessions, settings, audit log, trash restore |
 
 ### Planned / not yet implemented
 
 - Vault key re-wrapping API (client-driven master password change)
-- Redis-backed sessions / distributed rate limiting (Redis is in Compose but unused)
+- Redis-backed session cache (Postgres remains source of truth)
 - Auto-migrations on app startup
 - Demo client (CLI or web) showing client-side encryption
 
@@ -181,7 +181,7 @@ CI (`.github/workflows/ci.yml`) runs lint, unit tests, integration tests, OpenAP
 | `APP_ENV` | `production` | Set to `development` / `dev` / `local` / `test` to allow weak JWT secrets locally |
 | `DATABASE_URL` | local Postgres DSN | PostgreSQL connection string |
 | `JWT_SECRET` | `change-me` | HS256 signing key; **required ≥32 chars** and not a known weak value unless `APP_ENV` is development |
-| `REDIS_URL` | `redis://localhost:6379` | Reserved (not used yet) |
+| `REDIS_URL` | `redis://localhost:6379` | Distributed auth rate limiting; falls back to in-memory if unset or unreachable |
 | `CORS_ALLOWED_ORIGINS` | — | Comma-separated allowed origins |
 
 ## References

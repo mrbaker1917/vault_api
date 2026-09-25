@@ -7,8 +7,11 @@ import (
 	"vault_api/internal/api/handlers"
 	"vault_api/internal/api/middleware"
 	"vault_api/internal/crypto"
+	"vault_api/internal/ratelimit"
 	"vault_api/internal/repository"
 	"vault_api/internal/service"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type Deps struct {
@@ -22,12 +25,14 @@ type Deps struct {
 	DB                 DBPing
 	CORSAllowedOrigins []string
 	PasswordChecker    crypto.PasswordBreachChecker
+	AuthRateLimiter    ratelimit.Limiter
+	Redis              *redis.Client
 }
 
 func NewRouter(deps Deps) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", healthHandler())
-	mux.HandleFunc("GET /ready", readyHandler(deps.DB))
+	mux.HandleFunc("GET /ready", readyHandler(deps.DB, deps.Redis))
 	mux.Handle("GET /metrics", promhttp.Handler())
 	audit := service.NewAuditService(deps.AuditLogs)
 	auth := service.NewAuthService(deps.Users, deps.Sessions, deps.JWTSecret, audit, deps.PasswordChecker)
@@ -60,11 +65,16 @@ func NewRouter(deps Deps) http.Handler {
 	mux.HandleFunc("POST /api/v1/recovery/verify", h.VerifyRecovery)
 	mux.Handle("GET /api/v1/audit/logs", middleware.RequireAuth(deps.JWTSecret, deps.Sessions)(http.HandlerFunc(h.ListAuditLogs)))
 
+	limiter := deps.AuthRateLimiter
+	if limiter == nil {
+		limiter = ratelimit.NewMemoryLimiter(ratelimit.DefaultAuthLimit, ratelimit.DefaultAuthWindow)
+	}
+
 	return middleware.Chain(mux,
 		middleware.Recover,
 		middleware.Metrics,
 		middleware.LogRequests,
 		middleware.CORS(deps.CORSAllowedOrigins),
-		middleware.AuthRateLimit,
+		middleware.AuthRateLimit(limiter),
 	)
 }

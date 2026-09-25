@@ -9,12 +9,16 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"vault_api/internal/api"
 	"vault_api/internal/config"
 	"vault_api/internal/crypto"
+	redisclient "vault_api/internal/redis"
+	"vault_api/internal/ratelimit"
 	"vault_api/internal/repository"
 )
 
@@ -23,7 +27,7 @@ type dbConnection interface {
 }
 
 type connectDBFn func(ctx context.Context, databaseURL string) (dbConnection, error)
-type buildDepsFn func(db dbConnection) (api.Deps, error)
+type buildDepsFn func(db dbConnection, redisClient *redis.Client) (api.Deps, error)
 type listenFn func(server *http.Server) error
 
 func main() {
@@ -44,10 +48,22 @@ func main() {
 		func(ctx context.Context, databaseURL string) (dbConnection, error) {
 			return repository.NewPostgres(ctx, databaseURL)
 		},
-		func(db dbConnection) (api.Deps, error) {
+		func(db dbConnection, redisClient *redis.Client) (api.Deps, error) {
 			pg, ok := db.(*repository.Postgres)
 			if !ok {
 				return api.Deps{}, fmt.Errorf("failed to cast postgres to *repository.Postgres")
+			}
+
+			var authLimiter ratelimit.Limiter
+			if redisClient != nil {
+				authLimiter = ratelimit.NewRedisLimiter(
+					redisClient,
+					"auth",
+					ratelimit.DefaultAuthLimit,
+					ratelimit.DefaultAuthWindow,
+				)
+			} else {
+				authLimiter = ratelimit.NewMemoryLimiter(ratelimit.DefaultAuthLimit, ratelimit.DefaultAuthWindow)
 			}
 
 			return api.Deps{
@@ -61,6 +77,8 @@ func main() {
 				DB:                 pg,
 				CORSAllowedOrigins: cfg.CORSAllowedOrigins,
 				PasswordChecker:    crypto.NewHIBPPasswordBreachChecker(nil),
+				AuthRateLimiter:    authLimiter,
+				Redis:              redisClient,
 			}, nil
 		},
 		api.NewRouter,
@@ -84,7 +102,21 @@ func run(ctx context.Context, cfg config.Config, connectDB connectDBFn, buildDep
 	}
 	defer postgres.Close()
 
-	deps, err := buildDeps(postgres)
+	var redisClient *redis.Client
+	if redisURL := strings.TrimSpace(cfg.RedisURL); redisURL != "" {
+		redisInitCtx, redisInitCancel := context.WithTimeout(ctx, 5*time.Second)
+		client, err := redisclient.NewClient(redisInitCtx, redisURL)
+		redisInitCancel()
+		if err != nil {
+			slog.Warn("redis unavailable; using in-memory auth rate limiter", "error", err)
+		} else {
+			redisClient = client
+			defer redisClient.Close()
+			slog.Info("redis connected for distributed auth rate limiting")
+		}
+	}
+
+	deps, err := buildDeps(postgres, redisClient)
 	if err != nil {
 		return fmt.Errorf("failed to build dependencies: %w", err)
 	}
