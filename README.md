@@ -29,7 +29,7 @@ export PORT=8081
 go run ./cmd/server
 ```
 
-Purge soft-deleted vault items older than 30 days (for cron):
+Soft-deleted vault items are purged automatically by the `purge` service in Docker Compose (daily at 03:00 UTC, 30-day retention). Manual run:
 
 ```bash
 go run ./cmd/purge
@@ -87,7 +87,7 @@ The React app runs at [http://localhost:5173](http://localhost:5173). See [web/R
 | **Sharing** | Share items by email with client-wrapped keys (`read` / `write`) |
 | **Audit** | Append-only log of sensitive operations |
 | **Security** | Argon2id passwords, Redis-backed distributed auth rate limiting + session cache, encrypted blob validation, password strength + HIBP breach checks, shared write enforcement |
-| **Ops** | JSON logging, `/health`, `/ready`, Prometheus `/metrics`, auto-migrations, prod Docker Compose + Caddy TLS, GitHub Actions CI |
+| **Ops** | JSON logging, `/health`, `/ready`, Prometheus `/metrics`, auto-migrations, scheduled soft-delete purge, prod Docker Compose + Caddy TLS, GitHub Actions CI |
 | **Web UI** | React app in `web/` — auth, encrypted vault CRUD, MFA, recovery, sessions, settings, audit log, trash restore |
 
 ### Planned / not yet implemented

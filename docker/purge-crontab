@@ -1,0 +1,2 @@
+# Daily at 03:00 UTC — hard-delete vault items soft-deleted 30+ days ago
+0 3 * * * /app/purge

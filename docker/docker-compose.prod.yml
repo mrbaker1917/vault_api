@@ -64,6 +64,20 @@ services:
     volumes:
       - redis_data:/data
 
+  purge:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: vault_api_purge
+    restart: unless-stopped
+    command: ["crond", "-f", "-l", "2"]
+    environment:
+      DATABASE_URL: "postgres://vault:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/vault_api?sslmode=disable"
+      PURGE_RETENTION_DAYS: "${PURGE_RETENTION_DAYS:-30}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   redis_data:

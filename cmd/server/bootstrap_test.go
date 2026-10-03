@@ -158,6 +158,7 @@ func TestDockerComposeProdIncludesCaddyAndHealthchecks(t *testing.T) {
 	assertPattern(t, string(content), `(?mi)caddy`, "Caddy reverse proxy service")
 	assertPattern(t, string(content), `(?mi)healthcheck`, "service healthchecks")
 	assertPattern(t, string(content), `(?mi)AUTO_MIGRATE`, "auto migrate env var")
+	assertPattern(t, string(content), `(?m)^\s{2}purge:\s*$`, "purge cron service")
 }
 
 func TestDockerComposeBootstrapsAppPostgresAndRedis(t *testing.T) {
@@ -173,6 +174,7 @@ func TestDockerComposeBootstrapsAppPostgresAndRedis(t *testing.T) {
 	assertPattern(t, string(content), `(?m)^\s{2,}(app|api|vault-api):\s*$`, "application service definition")
 	assertPattern(t, string(content), `(?mi)postgres`, "PostgreSQL service or image reference")
 	assertPattern(t, string(content), `(?mi)redis`, "Redis service or image reference")
+	assertPattern(t, string(content), `(?m)^\s{2}purge:\s*$`, "purge cron service")
 }
 
 func TestRunBootstrapsDBAndRouterWithoutLiveDatabase(t *testing.T) {
