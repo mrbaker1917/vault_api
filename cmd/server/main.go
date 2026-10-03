@@ -17,6 +17,7 @@ import (
 	"vault_api/internal/api"
 	"vault_api/internal/config"
 	"vault_api/internal/crypto"
+	"vault_api/internal/migrate"
 	redisclient "vault_api/internal/redis"
 	"vault_api/internal/ratelimit"
 	"vault_api/internal/repository"
@@ -110,6 +111,20 @@ func run(ctx context.Context, cfg config.Config, connectDB connectDBFn, buildDep
 		return fmt.Errorf("failed to initialize postgres: %w", err)
 	}
 	defer postgres.Close()
+
+	if cfg.AutoMigrate {
+		pg, ok := postgres.(*repository.Postgres)
+		if !ok {
+			return fmt.Errorf("auto migrate enabled but database connection is not postgres")
+		}
+		migrateCtx, migrateCancel := context.WithTimeout(ctx, 30*time.Second)
+		if err := migrate.Up(migrateCtx, pg.Pool(), cfg.MigrationsDir); err != nil {
+			migrateCancel()
+			return fmt.Errorf("run migrations: %w", err)
+		}
+		migrateCancel()
+		slog.Info("database migrations applied", "dir", cfg.MigrationsDir)
+	}
 
 	var redisClient *redis.Client
 	if redisURL := strings.TrimSpace(cfg.RedisURL); redisURL != "" {

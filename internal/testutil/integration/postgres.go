@@ -19,6 +19,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"vault_api/internal/api"
+	"vault_api/internal/migrate"
 	"vault_api/internal/repository"
 )
 
@@ -55,7 +56,10 @@ func NewTestRouter(t *testing.T) (http.Handler, func()) {
 
 	migrateCtx, migrateCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer migrateCancel()
-	if err := runMigrations(migrateCtx, pg.Pool(), migrationsDir(t)); err != nil {
+	if err := resetSchema(migrateCtx, pg.Pool()); err != nil {
+		t.Fatalf("reset schema: %v", err)
+	}
+	if err := migrate.Up(migrateCtx, pg.Pool(), migrationsDir(t)); err != nil {
 		t.Fatalf("run migrations: %v", err)
 	}
 
@@ -135,34 +139,6 @@ func startPostgresContainer() (connStr string, cleanup func(), err error) {
 	return connStr, cleanup, nil
 }
 
-func runMigrations(ctx context.Context, pool *pgxpool.Pool, dir string) error {
-	if err := resetSchema(ctx, pool); err != nil {
-		return err
-	}
-
-	files := []string{
-		"004_enable_pgcrypto.sql",
-		"001_create_users.sql",
-		"002_create_sessions.sql",
-		"003_create_vault_items.sql",
-	}
-
-	for _, name := range files {
-		content, err := os.ReadFile(filepath.Join(dir, name))
-		if err != nil {
-			return err
-		}
-		sql := gooseUpSQL(string(content))
-		if sql == "" {
-			continue
-		}
-		if _, err := pool.Exec(ctx, sql); err != nil {
-			return fmt.Errorf("migration %s: %w", name, err)
-		}
-	}
-	return nil
-}
-
 func resetSchema(ctx context.Context, pool *pgxpool.Pool) error {
 	_, err := pool.Exec(ctx, `
 		DROP TABLE IF EXISTS shared_vault_items CASCADE;
@@ -171,24 +147,9 @@ func resetSchema(ctx context.Context, pool *pgxpool.Pool) error {
 		DROP TABLE IF EXISTS vault_items CASCADE;
 		DROP TABLE IF EXISTS sessions CASCADE;
 		DROP TABLE IF EXISTS users CASCADE;
+		DROP TABLE IF EXISTS goose_db_version;
 	`)
 	return err
-}
-
-func gooseUpSQL(content string) string {
-	const upMarker = "-- +goose Up"
-	const downMarker = "-- +goose Down"
-
-	upIdx := strings.Index(content, upMarker)
-	if upIdx == -1 {
-		return strings.TrimSpace(content)
-	}
-
-	sql := content[upIdx+len(upMarker):]
-	if downIdx := strings.Index(sql, downMarker); downIdx != -1 {
-		sql = sql[:downIdx]
-	}
-	return strings.TrimSpace(sql)
 }
 
 func migrationsDir(t *testing.T) string {

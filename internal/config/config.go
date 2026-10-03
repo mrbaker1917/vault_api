@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -14,6 +15,8 @@ type Config struct {
 	JWTSecret          string
 	AppEnv             string
 	CORSAllowedOrigins []string
+	AutoMigrate        bool
+	MigrationsDir      string
 }
 
 // Load reads config from environment with sensible local defaults.
@@ -25,6 +28,8 @@ func Load() Config {
 		JWTSecret:          envOrDefault("JWT_SECRET", "change-me"),
 		AppEnv:             envOrDefault("APP_ENV", "production"),
 		CORSAllowedOrigins: corsAllowedOrigins(),
+		AutoMigrate:        envOrDefaultBool("AUTO_MIGRATE", true),
+		MigrationsDir:      envOrDefault("MIGRATIONS_DIR", "migrations"),
 	}
 }
 
@@ -91,4 +96,16 @@ func envOrDefault(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func envOrDefaultBool(key string, fallback bool) bool {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }

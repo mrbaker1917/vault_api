@@ -32,3 +32,28 @@ func TestValidateAcceptsStrongJWTSecret(t *testing.T) {
 		t.Fatalf("expected strong secret to pass: %v", err)
 	}
 }
+
+func TestLoadAutoMigrateDefaultsTrue(t *testing.T) {
+	t.Setenv("AUTO_MIGRATE", "")
+	cfg := configLoadWithoutCORSOverride(t)
+	if !cfg.AutoMigrate {
+		t.Fatal("expected AUTO_MIGRATE to default to true")
+	}
+	if cfg.MigrationsDir != "migrations" {
+		t.Fatalf("expected default migrations dir, got %q", cfg.MigrationsDir)
+	}
+}
+
+func TestLoadAutoMigrateCanBeDisabled(t *testing.T) {
+	t.Setenv("AUTO_MIGRATE", "false")
+	cfg := configLoadWithoutCORSOverride(t)
+	if cfg.AutoMigrate {
+		t.Fatal("expected AUTO_MIGRATE=false")
+	}
+}
+
+func configLoadWithoutCORSOverride(t *testing.T) Config {
+	t.Helper()
+	t.Setenv("CORS_ALLOWED_ORIGINS", "")
+	return Load()
+}

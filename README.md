@@ -13,18 +13,18 @@ I wanted to create a password manager to understand how it would be constructed,
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.26+
 - PostgreSQL 16+ (or Docker)
 - For integration tests: Docker (testcontainers)
 
 ## Contributing
 
 ```bash
-# Apply migrations to your Postgres instance (goose), then:
 export DATABASE_URL="postgres://vault:vault@localhost:5433/vault_api?sslmode=disable"
 export JWT_SECRET="dev-secret-change-me-for-local-only!!"
 export APP_ENV=development
 export PORT=8081
+# AUTO_MIGRATE=true by default; set AUTO_MIGRATE=false to skip startup migrations
 
 go run ./cmd/server
 ```
@@ -49,7 +49,18 @@ cd docker
 docker compose up --build
 ```
 
-The API listens on [http://localhost:8081](http://localhost:8081). Apply migrations to Postgres before first use (not automated on startup yet).
+The API listens on [http://localhost:8081](http://localhost:8081). Migrations run automatically on startup (`AUTO_MIGRATE=true` by default).
+
+### Production Docker Compose
+
+```bash
+cd docker
+cp .env.prod.example .env.prod
+# edit .env.prod — set POSTGRES_PASSWORD and JWT_SECRET (≥32 chars)
+docker compose --env-file .env.prod -f docker-compose.prod.yml up --build
+```
+
+API is served at **https://localhost** via Caddy (internal TLS). Postgres and Redis are not exposed on the host.
 
 ### Web frontend
 
@@ -76,13 +87,12 @@ The React app runs at [http://localhost:5173](http://localhost:5173). See [web/R
 | **Sharing** | Share items by email with client-wrapped keys (`read` / `write`) |
 | **Audit** | Append-only log of sensitive operations |
 | **Security** | Argon2id passwords, Redis-backed distributed auth rate limiting + session cache, encrypted blob validation, password strength + HIBP breach checks, shared write enforcement |
-| **Ops** | JSON logging, `/health`, `/ready`, Prometheus `/metrics`, Docker, GitHub Actions CI |
+| **Ops** | JSON logging, `/health`, `/ready`, Prometheus `/metrics`, auto-migrations, prod Docker Compose + Caddy TLS, GitHub Actions CI |
 | **Web UI** | React app in `web/` — auth, encrypted vault CRUD, MFA, recovery, sessions, settings, audit log, trash restore |
 
 ### Planned / not yet implemented
 
 - Vault key re-wrapping API (client-driven master password change)
-- Auto-migrations on app startup
 - Demo client (CLI or web) showing client-side encryption
 
 ## Zero-knowledge model
@@ -143,7 +153,7 @@ vault_api/
 
 | Layer | Choice |
 |-------|--------|
-| Language | Go 1.25 |
+| Language | Go 1.26 |
 | HTTP | `net/http` (Go 1.22+ routing) |
 | Database | PostgreSQL 17, pgx/v5, sqlc |
 | Migrations | Goose |
@@ -181,6 +191,8 @@ CI (`.github/workflows/ci.yml`) runs lint, unit tests, integration tests, OpenAP
 | `DATABASE_URL` | local Postgres DSN | PostgreSQL connection string |
 | `JWT_SECRET` | `change-me` | HS256 signing key; **required ≥32 chars** and not a known weak value unless `APP_ENV` is development |
 | `REDIS_URL` | `redis://localhost:6379` | Distributed auth rate limiting and session cache; falls back to in-memory/Postgres-only if unset or unreachable |
+| `AUTO_MIGRATE` | `true` | Run goose migrations from `MIGRATIONS_DIR` on startup |
+| `MIGRATIONS_DIR` | `migrations` | Path to goose SQL migrations |
 | `CORS_ALLOWED_ORIGINS` | — | Comma-separated allowed origins |
 
 ## References

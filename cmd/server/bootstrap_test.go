@@ -146,6 +146,20 @@ func TestConfigLoadUsesBootstrapDefaults(t *testing.T) {
 	}
 }
 
+func TestDockerComposeProdIncludesCaddyAndHealthchecks(t *testing.T) {
+	root := repoRoot(t)
+	composePath := filepath.Join(root, "docker", "docker-compose.prod.yml")
+
+	content, err := os.ReadFile(composePath)
+	if err != nil {
+		t.Fatalf("expected production Docker Compose file at %s: %v", composePath, err)
+	}
+
+	assertPattern(t, string(content), `(?mi)caddy`, "Caddy reverse proxy service")
+	assertPattern(t, string(content), `(?mi)healthcheck`, "service healthchecks")
+	assertPattern(t, string(content), `(?mi)AUTO_MIGRATE`, "auto migrate env var")
+}
+
 func TestDockerComposeBootstrapsAppPostgresAndRedis(t *testing.T) {
 	root := repoRoot(t)
 	composePath := filepath.Join(root, "docker", "docker-compose.yml")
@@ -166,8 +180,10 @@ func TestRunBootstrapsDBAndRouterWithoutLiveDatabase(t *testing.T) {
 
 	ctx := context.Background()
 	cfg := config.Config{
-		Port:        "8081",
-		DatabaseURL: "postgres://example",
+		Port:          "8081",
+		DatabaseURL:   "postgres://example",
+		AutoMigrate:   false,
+		MigrationsDir: "migrations",
 	}
 
 	stubDB := &stubDBConnection{}
@@ -223,8 +239,10 @@ func TestRunReturnsWrappedErrorWhenDBInitializationFails(t *testing.T) {
 	t.Parallel()
 
 	cfg := config.Config{
-		Port:        "8081",
-		DatabaseURL: "postgres://example",
+		Port:          "8081",
+		DatabaseURL:   "postgres://example",
+		AutoMigrate:   false,
+		MigrationsDir: "migrations",
 	}
 
 	expectedErr := errors.New("db unavailable")

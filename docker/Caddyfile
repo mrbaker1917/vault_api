@@ -1,0 +1,7 @@
+# Production reverse proxy with TLS.
+# Replace localhost with your domain and use ACME (remove "tls internal") for real certs.
+
+localhost {
+	tls internal
+	reverse_proxy app:8080
+}
