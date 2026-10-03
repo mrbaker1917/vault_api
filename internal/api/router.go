@@ -72,6 +72,7 @@ func NewRouter(deps Deps) http.Handler {
 
 	return middleware.Chain(mux,
 		middleware.Recover,
+		middleware.LimitRequestBody(middleware.DefaultMaxRequestBodyBytes),
 		middleware.Metrics,
 		middleware.LogRequests,
 		middleware.CORS(deps.CORSAllowedOrigins),

@@ -7,7 +7,6 @@ import (
 	"vault_api/internal/api/middleware"
 	"vault_api/internal/service"
 	"github.com/google/uuid"
-	"encoding/json"
 	"vault_api/internal/domain"
 )
 
@@ -26,8 +25,7 @@ func (h *Handler) CreateItem(w http.ResponseWriter, r *http.Request) {
 		Tags          []string `json:"tags"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+	if !decodeJSON(w, r, &req) {
 		return
 	}
 
@@ -166,8 +164,7 @@ func (h *Handler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 		Version       int32    `json:"version"`
 	}
 	
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+	if !decodeJSON(w, r, &req) {
 		return
 	}
 
@@ -216,8 +213,7 @@ func (h *Handler) DeleteItem(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Version int32 `json:"version"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+	if !decodeJSON(w, r, &req) {
 		return
 	}
 	version := req.Version
@@ -248,8 +244,7 @@ func (h *Handler) RestoreItem(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Version int32 `json:"version"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+	if !decodeJSON(w, r, &req) {
 		return
 	}
 	version := req.Version

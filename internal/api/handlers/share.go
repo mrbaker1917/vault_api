@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -30,8 +29,7 @@ func (h *Handler) ShareItem(w http.ResponseWriter, r *http.Request) {
 		EncryptedItemKey []byte `json:"encrypted_item_key"`
 		Permission       string `json:"permission"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+	if !decodeJSON(w, r, &req) {
 		return
 	}
 
