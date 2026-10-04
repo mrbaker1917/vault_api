@@ -18,6 +18,7 @@ const (
 	AuditAuthLogout         = "auth.logout"
 	AuditAuthPasswordChange = "auth.password.change"
 	AuditAuthSessionRevoke  = "auth.session.revoke"
+	AuditAuthRefreshReuse   = "auth.refresh.reuse"
 	AuditVaultItemCreate    = "vault.item.create"
 	AuditVaultItemUpdate    = "vault.item.update"
 	AuditVaultItemDelete    = "vault.item.delete"

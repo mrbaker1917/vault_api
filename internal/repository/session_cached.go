@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"vault_api/internal/domain"
@@ -27,6 +28,23 @@ func (r *cachedSessionRepository) Create(ctx context.Context, session domain.Ses
 
 func (r *cachedSessionRepository) GetByTokenHash(ctx context.Context, tokenHash string) (domain.Session, error) {
 	return r.base.GetByTokenHash(ctx, tokenHash)
+}
+
+func (r *cachedSessionRepository) GetByPreviousTokenHash(ctx context.Context, tokenHash string) (domain.Session, error) {
+	return r.base.GetByPreviousTokenHash(ctx, tokenHash)
+}
+
+func (r *cachedSessionRepository) RotateToken(ctx context.Context, sessionID uuid.UUID, currentTokenHash, newTokenHash string) (bool, error) {
+	return r.base.RotateToken(ctx, sessionID, currentTokenHash, newTokenHash)
+}
+
+func (r *cachedSessionRepository) RotateFromPreviousToken(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	previousTokenHash, newTokenHash string,
+	grace time.Duration,
+) (bool, error) {
+	return r.base.RotateFromPreviousToken(ctx, sessionID, previousTokenHash, newTokenHash, grace)
 }
 
 func (r *cachedSessionRepository) GetByID(ctx context.Context, id uuid.UUID) (domain.Session, error) {

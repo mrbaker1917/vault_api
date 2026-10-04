@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"vault_api/internal/crypto"
@@ -104,11 +105,54 @@ func (s *stubAuthSessionRepo) Create(_ context.Context, session domain.Session) 
 
 func (s *stubAuthSessionRepo) GetByTokenHash(_ context.Context, tokenHash string) (domain.Session, error) {
 	for _, session := range s.sessions {
-		if session.TokenHash == tokenHash {
+		if session.TokenHash == tokenHash && session.RevokedAt == nil {
 			return session, nil
 		}
 	}
 	return domain.Session{}, repository.ErrNotFound
+}
+
+func (s *stubAuthSessionRepo) GetByPreviousTokenHash(_ context.Context, tokenHash string) (domain.Session, error) {
+	for _, session := range s.sessions {
+		if session.PreviousTokenHash == tokenHash && session.RevokedAt == nil {
+			return session, nil
+		}
+	}
+	return domain.Session{}, repository.ErrNotFound
+}
+
+func (s *stubAuthSessionRepo) RotateToken(_ context.Context, sessionID uuid.UUID, currentTokenHash, newTokenHash string) (bool, error) {
+	session, ok := s.sessions[sessionID]
+	if !ok || session.RevokedAt != nil || session.TokenHash != currentTokenHash {
+		return false, nil
+	}
+	now := time.Now()
+	session.PreviousTokenHash = session.TokenHash
+	session.TokenHash = newTokenHash
+	session.TokenRotatedAt = &now
+	s.sessions[sessionID] = session
+	return true, nil
+}
+
+func (s *stubAuthSessionRepo) RotateFromPreviousToken(
+	_ context.Context,
+	sessionID uuid.UUID,
+	previousTokenHash, newTokenHash string,
+	grace time.Duration,
+) (bool, error) {
+	session, ok := s.sessions[sessionID]
+	if !ok || session.RevokedAt != nil || session.PreviousTokenHash != previousTokenHash {
+		return false, nil
+	}
+	if session.TokenRotatedAt == nil || time.Since(*session.TokenRotatedAt) > grace {
+		return false, nil
+	}
+	now := time.Now()
+	session.PreviousTokenHash = session.TokenHash
+	session.TokenHash = newTokenHash
+	session.TokenRotatedAt = &now
+	s.sessions[sessionID] = session
+	return true, nil
 }
 
 func (s *stubAuthSessionRepo) GetByID(_ context.Context, id uuid.UUID) (domain.Session, error) {
@@ -120,7 +164,13 @@ func (s *stubAuthSessionRepo) GetByID(_ context.Context, id uuid.UUID) (domain.S
 }
 
 func (s *stubAuthSessionRepo) Revoke(_ context.Context, id uuid.UUID) error {
-	delete(s.sessions, id)
+	session, ok := s.sessions[id]
+	if !ok {
+		return repository.ErrNotFound
+	}
+	now := time.Now()
+	session.RevokedAt = &now
+	s.sessions[id] = session
 	return nil
 }
 
@@ -260,6 +310,81 @@ func TestAuthServiceSignupRejectsCompromisedPassword(t *testing.T) {
 	_, err := svc.Signup(context.Background(), "user@example.com", "StrongPass123", AuditContext{})
 	if !errors.Is(err, ErrCompromisedPassword) {
 		t.Fatalf("expected ErrCompromisedPassword, got %v", err)
+	}
+}
+
+func TestAuthServiceRefreshRotatesToken(t *testing.T) {
+	sessions := newStubAuthSessionRepo()
+	svc := NewAuthService(newStubAuthUserRepo(), sessions, "test-secret", nil, nil)
+
+	userID := uuid.New()
+	sessionID := uuid.New()
+	refreshToken, err := crypto.GenerateRefreshToken()
+	if err != nil {
+		t.Fatalf("generate refresh token: %v", err)
+	}
+	tokenHash, err := crypto.HashToken(refreshToken)
+	if err != nil {
+		t.Fatalf("hash token: %v", err)
+	}
+	sessions.sessions[sessionID] = domain.Session{
+		ID:        sessionID,
+		UserID:    userID,
+		TokenHash: tokenHash,
+		ExpiresAt: time.Now().Add(time.Hour),
+	}
+
+	accessToken, newRefreshToken, err := svc.Refresh(context.Background(), refreshToken)
+	if err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	if accessToken == "" || newRefreshToken == "" || newRefreshToken == refreshToken {
+		t.Fatalf("expected rotated tokens, got access=%q refresh=%q", accessToken, newRefreshToken)
+	}
+
+	newHash, err := crypto.HashToken(newRefreshToken)
+	if err != nil {
+		t.Fatalf("hash new token: %v", err)
+	}
+	stored := sessions.sessions[sessionID]
+	if stored.TokenHash != newHash {
+		t.Fatalf("expected stored token hash to update")
+	}
+	if stored.PreviousTokenHash != tokenHash {
+		t.Fatalf("expected previous token hash to be retained")
+	}
+}
+
+func TestAuthServiceRefreshRejectsReusedToken(t *testing.T) {
+	sessions := newStubAuthSessionRepo()
+	svc := NewAuthService(newStubAuthUserRepo(), sessions, "test-secret", nil, nil)
+
+	userID := uuid.New()
+	sessionID := uuid.New()
+	oldRefresh, err := crypto.GenerateRefreshToken()
+	if err != nil {
+		t.Fatalf("generate refresh token: %v", err)
+	}
+	oldHash, err := crypto.HashToken(oldRefresh)
+	if err != nil {
+		t.Fatalf("hash token: %v", err)
+	}
+	rotatedAt := time.Now().Add(-time.Minute)
+	sessions.sessions[sessionID] = domain.Session{
+		ID:                sessionID,
+		UserID:            userID,
+		TokenHash:         "current-hash",
+		PreviousTokenHash: oldHash,
+		TokenRotatedAt:    &rotatedAt,
+		ExpiresAt:         time.Now().Add(time.Hour),
+	}
+
+	_, _, err = svc.Refresh(context.Background(), oldRefresh)
+	if !errors.Is(err, ErrRefreshTokenReuse) {
+		t.Fatalf("expected ErrRefreshTokenReuse, got %v", err)
+	}
+	if sessions.sessions[sessionID].RevokedAt == nil {
+		t.Fatal("expected session to be revoked after reuse")
 	}
 }
 

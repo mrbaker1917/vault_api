@@ -158,6 +158,106 @@ func TestIntegrationAuthSignupLoginLogout(t *testing.T) {
 	}
 }
 
+func TestIntegrationRefreshTokenRotation(t *testing.T) {
+	handler, cleanup := integration.NewTestRouter(t)
+	defer cleanup()
+
+	email := fmt.Sprintf("refresh-%d@example.com", time.Now().UnixNano())
+	password := "Secure-Password123"
+
+	signup := integration.DoJSON(t, handler, integration.JSONRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/signup",
+		Body: map[string]string{
+			"email":    email,
+			"password": password,
+		},
+	})
+	if signup.Status != http.StatusCreated {
+		t.Fatalf("signup status = %d, body = %s", signup.Status, signup.Body)
+	}
+
+	login := integration.DoJSON(t, handler, integration.JSONRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/login",
+		Body: map[string]string{
+			"email":    email,
+			"password": password,
+		},
+	})
+	if login.Status != http.StatusOK {
+		t.Fatalf("login status = %d, body = %s", login.Status, login.Body)
+	}
+
+	var loginTokens struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+	}
+	integration.DecodeJSON(t, login, &loginTokens)
+
+	refresh := integration.DoJSON(t, handler, integration.JSONRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/refresh",
+		Body: map[string]string{
+			"refresh_token": loginTokens.RefreshToken,
+		},
+	})
+	if refresh.Status != http.StatusOK {
+		t.Fatalf("refresh status = %d, body = %s", refresh.Status, refresh.Body)
+	}
+
+	var rotatedTokens struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+	}
+	integration.DecodeJSON(t, refresh, &rotatedTokens)
+	if rotatedTokens.AccessToken == "" || rotatedTokens.RefreshToken == "" {
+		t.Fatalf("expected rotated tokens, got %+v", rotatedTokens)
+	}
+	if rotatedTokens.RefreshToken == loginTokens.RefreshToken {
+		t.Fatal("expected refresh token to rotate")
+	}
+
+	me := integration.DoJSON(t, handler, integration.JSONRequest{
+		Method: http.MethodGet,
+		Path:   "/api/v1/me",
+		Token:  rotatedTokens.AccessToken,
+	})
+	if me.Status != http.StatusOK {
+		t.Fatalf("me after refresh status = %d, body = %s", me.Status, me.Body)
+	}
+
+	secondRefresh := integration.DoJSON(t, handler, integration.JSONRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/refresh",
+		Body: map[string]string{
+			"refresh_token": rotatedTokens.RefreshToken,
+		},
+	})
+	if secondRefresh.Status != http.StatusOK {
+		t.Fatalf("second refresh status = %d, body = %s", secondRefresh.Status, secondRefresh.Body)
+	}
+
+	var secondRotated struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	integration.DecodeJSON(t, secondRefresh, &secondRotated)
+	if secondRotated.RefreshToken == rotatedTokens.RefreshToken {
+		t.Fatal("expected refresh token to rotate again")
+	}
+
+	stale := integration.DoJSON(t, handler, integration.JSONRequest{
+		Method: http.MethodPost,
+		Path:   "/api/v1/auth/refresh",
+		Body: map[string]string{
+			"refresh_token": loginTokens.RefreshToken,
+		},
+	})
+	if stale.Status != http.StatusUnauthorized {
+		t.Fatalf("stale refresh status = %d, body = %s", stale.Status, stale.Body)
+	}
+}
+
 func TestIntegrationVaultCRUD(t *testing.T) {
 	handler, cleanup := integration.NewTestRouter(t)
 	defer cleanup()

@@ -17,15 +17,17 @@ type sessionPostgresRepository struct {
 }
 
 type sessionRow struct {
-	id uuid.UUID
-	userID uuid.UUID
-	tokenHash string
-	createdAt time.Time
-	expiresAt time.Time
-	revokedAt *time.Time
-	deviceName string
-	ipAddress string
-	userAgent string
+	id                uuid.UUID
+	userID            uuid.UUID
+	tokenHash         string
+	previousTokenHash string
+	tokenRotatedAt    *time.Time
+	createdAt         time.Time
+	expiresAt         time.Time
+	revokedAt         *time.Time
+	deviceName        string
+	ipAddress         string
+	userAgent         string
 }
 
 func NewSessionRepository(pg *Postgres) SessionRepository {
@@ -74,6 +76,51 @@ func (r *sessionPostgresRepository) GetByTokenHash(ctx context.Context, tokenHas
 	return toDomainSession(sessionRow), nil
 }
 
+func (r *sessionPostgresRepository) GetByPreviousTokenHash(ctx context.Context, tokenHash string) (domain.Session, error) {
+	row, err := r.q.GetSessionByPreviousTokenHash(ctx, pgTextFromString(tokenHash))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.Session{}, ErrNotFound
+		}
+		return domain.Session{}, fmt.Errorf("get session by previous token hash: %w", err)
+	}
+	sessionRow, err := sessionRowFromFullSession(row)
+	if err != nil {
+		return domain.Session{}, fmt.Errorf("get session by previous token hash: %w", err)
+	}
+	return toDomainSession(sessionRow), nil
+}
+
+func (r *sessionPostgresRepository) RotateToken(ctx context.Context, sessionID uuid.UUID, currentTokenHash, newTokenHash string) (bool, error) {
+	rowsAffected, err := r.q.RotateSessionToken(ctx, sqlc.RotateSessionTokenParams{
+		ID:          pgUUIDToPG(sessionID),
+		TokenHash:   newTokenHash,
+		TokenHash_2: currentTokenHash,
+	})
+	if err != nil {
+		return false, fmt.Errorf("rotate session token: %w", err)
+	}
+	return rowsAffected > 0, nil
+}
+
+func (r *sessionPostgresRepository) RotateFromPreviousToken(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	previousTokenHash, newTokenHash string,
+	grace time.Duration,
+) (bool, error) {
+	rowsAffected, err := r.q.RotateSessionTokenFromPrevious(ctx, sqlc.RotateSessionTokenFromPreviousParams{
+		ID:                pgUUIDToPG(sessionID),
+		TokenHash:         newTokenHash,
+		PreviousTokenHash: pgTextFromString(previousTokenHash),
+		TokenRotatedAt:    pgTimestampToPG(time.Now().Add(-grace)),
+	})
+	if err != nil {
+		return false, fmt.Errorf("rotate session token from previous: %w", err)
+	}
+	return rowsAffected > 0, nil
+}
+
 func (r *sessionPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (domain.Session, error) {
 	row, err := r.q.GetSessionByID(ctx, pgUUIDToPG(id))
 	if err != nil {
@@ -89,7 +136,7 @@ func (r *sessionPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (
 	return toDomainSession(sessionRow), nil
 }
 
-func sessionRowFromGetByID(r sqlc.Session) (sessionRow, error) {
+func sessionRowFromGetByID(r sqlc.GetSessionByIDRow) (sessionRow, error) {
 	id, err := uuidFromPG(r.ID)
 	if err != nil {
 		return sessionRow{}, err
@@ -111,7 +158,7 @@ func sessionRowFromGetByID(r sqlc.Session) (sessionRow, error) {
 	}, nil
 }
 
-func sessionRowFromCreate(r sqlc.Session) (sessionRow, error) {
+func sessionRowFromCreate(r sqlc.CreateSessionRow) (sessionRow, error) {
 	id, err := uuidFromPG(r.ID)
 	if err != nil {
 		return sessionRow{}, err
@@ -133,7 +180,7 @@ func sessionRowFromCreate(r sqlc.Session) (sessionRow, error) {
 	}, nil
 }
 
-func sessionRowFromGetByTokenHash(r sqlc.Session) (sessionRow, error) {
+func sessionRowFromGetByTokenHash(r sqlc.GetSessionByTokenHashRow) (sessionRow, error) {
 	id, err := uuidFromPG(r.ID)
 	if err != nil {
 		return sessionRow{}, err
@@ -152,20 +199,46 @@ func sessionRowFromGetByTokenHash(r sqlc.Session) (sessionRow, error) {
 		deviceName: pgTextToString(r.DeviceName),
 		ipAddress: netipAddrToString(r.IpAddress),
 		userAgent: pgTextToString(r.UserAgent),
+	}, nil
+}
+
+func sessionRowFromFullSession(r sqlc.Session) (sessionRow, error) {
+	id, err := uuidFromPG(r.ID)
+	if err != nil {
+		return sessionRow{}, err
+	}
+	userID, err := uuidFromPG(r.UserID)
+	if err != nil {
+		return sessionRow{}, err
+	}
+	return sessionRow{
+		id:                id,
+		userID:            userID,
+		tokenHash:         r.TokenHash,
+		previousTokenHash: pgTextToString(r.PreviousTokenHash),
+		tokenRotatedAt:    pgTimestampToPtr(r.TokenRotatedAt),
+		createdAt:         pgTimestampFromPG(r.CreatedAt),
+		expiresAt:         pgTimestampFromPG(r.ExpiresAt),
+		revokedAt:         pgTimestampToPtr(r.RevokedAt),
+		deviceName:        pgTextToString(r.DeviceName),
+		ipAddress:         netipAddrToString(r.IpAddress),
+		userAgent:         pgTextToString(r.UserAgent),
 	}, nil
 }
 
 func toDomainSession(row sessionRow) domain.Session {
 	return domain.Session{
-		ID: row.id,
-		UserID: row.userID,
-		TokenHash: row.tokenHash,
-		CreatedAt: row.createdAt,
-		ExpiresAt: row.expiresAt,
-		RevokedAt: row.revokedAt,
-		DeviceName: row.deviceName,
-		IPAddress: row.ipAddress,
-		UserAgent: row.userAgent,
+		ID:                row.id,
+		UserID:            row.userID,
+		TokenHash:         row.tokenHash,
+		PreviousTokenHash: row.previousTokenHash,
+		TokenRotatedAt:    row.tokenRotatedAt,
+		CreatedAt:         row.createdAt,
+		ExpiresAt:         row.expiresAt,
+		RevokedAt:         row.revokedAt,
+		DeviceName:        row.deviceName,
+		IPAddress:         row.ipAddress,
+		UserAgent:         row.userAgent,
 	}
 }
 

@@ -3,6 +3,7 @@ import {
   getAccessToken,
   getRefreshToken,
   markAccessTokenRefreshed,
+  setTokens,
   shouldRefreshAccessToken,
 } from '../auth/tokens'
 import { markUserActivity } from '../auth/activity'
@@ -72,8 +73,12 @@ async function refreshAccessToken(): Promise<void> {
         throw await parseApiError(res)
       }
 
-      const body = (await res.json()) as { access_token: string }
-      markAccessTokenRefreshed(body.access_token)
+      const body = (await res.json()) as { access_token: string; refresh_token: string }
+      if (body.refresh_token) {
+        setTokens(body.access_token, body.refresh_token)
+      } else {
+        markAccessTokenRefreshed(body.access_token)
+      }
     })().finally(() => {
       refreshPromise = null
     })

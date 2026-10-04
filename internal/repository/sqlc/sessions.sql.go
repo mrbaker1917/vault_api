@@ -28,7 +28,19 @@ type CreateSessionParams struct {
 	ExpiresAt  pgtype.Timestamp
 }
 
-func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error) {
+type CreateSessionRow struct {
+	ID         pgtype.UUID
+	UserID     pgtype.UUID
+	TokenHash  string
+	DeviceName pgtype.Text
+	IpAddress  *netip.Addr
+	UserAgent  pgtype.Text
+	CreatedAt  pgtype.Timestamp
+	ExpiresAt  pgtype.Timestamp
+	RevokedAt  pgtype.Timestamp
+}
+
+func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (CreateSessionRow, error) {
 	row := q.db.QueryRow(ctx, createSession,
 		arg.UserID,
 		arg.TokenHash,
@@ -38,7 +50,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		arg.CreatedAt,
 		arg.ExpiresAt,
 	)
-	var i Session
+	var i CreateSessionRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -62,9 +74,21 @@ WHERE id = $1
   AND expires_at > NOW()
 `
 
-func (q *Queries) GetSessionByID(ctx context.Context, id pgtype.UUID) (Session, error) {
+type GetSessionByIDRow struct {
+	ID         pgtype.UUID
+	UserID     pgtype.UUID
+	TokenHash  string
+	DeviceName pgtype.Text
+	IpAddress  *netip.Addr
+	UserAgent  pgtype.Text
+	CreatedAt  pgtype.Timestamp
+	ExpiresAt  pgtype.Timestamp
+	RevokedAt  pgtype.Timestamp
+}
+
+func (q *Queries) GetSessionByID(ctx context.Context, id pgtype.UUID) (GetSessionByIDRow, error) {
 	row := q.db.QueryRow(ctx, getSessionByID, id)
-	var i Session
+	var i GetSessionByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -79,6 +103,33 @@ func (q *Queries) GetSessionByID(ctx context.Context, id pgtype.UUID) (Session, 
 	return i, err
 }
 
+const getSessionByPreviousTokenHash = `-- name: GetSessionByPreviousTokenHash :one
+SELECT id, user_id, token_hash, device_name, ip_address, user_agent, created_at, expires_at, revoked_at, previous_token_hash, token_rotated_at
+FROM sessions
+WHERE previous_token_hash = $1
+  AND revoked_at IS NULL
+  AND expires_at > NOW()
+`
+
+func (q *Queries) GetSessionByPreviousTokenHash(ctx context.Context, previousTokenHash pgtype.Text) (Session, error) {
+	row := q.db.QueryRow(ctx, getSessionByPreviousTokenHash, previousTokenHash)
+	var i Session
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TokenHash,
+		&i.DeviceName,
+		&i.IpAddress,
+		&i.UserAgent,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.PreviousTokenHash,
+		&i.TokenRotatedAt,
+	)
+	return i, err
+}
+
 const getSessionByTokenHash = `-- name: GetSessionByTokenHash :one
 SELECT id, user_id, token_hash, device_name, ip_address, user_agent, created_at, expires_at, revoked_at
 FROM sessions
@@ -87,9 +138,21 @@ WHERE token_hash = $1
   AND expires_at > NOW()
 `
 
-func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash string) (Session, error) {
+type GetSessionByTokenHashRow struct {
+	ID         pgtype.UUID
+	UserID     pgtype.UUID
+	TokenHash  string
+	DeviceName pgtype.Text
+	IpAddress  *netip.Addr
+	UserAgent  pgtype.Text
+	CreatedAt  pgtype.Timestamp
+	ExpiresAt  pgtype.Timestamp
+	RevokedAt  pgtype.Timestamp
+}
+
+func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash string) (GetSessionByTokenHashRow, error) {
 	row := q.db.QueryRow(ctx, getSessionByTokenHash, tokenHash)
-	var i Session
+	var i GetSessionByTokenHashRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -190,4 +253,61 @@ type RevokeSessionsExceptParams struct {
 func (q *Queries) RevokeSessionsExcept(ctx context.Context, arg RevokeSessionsExceptParams) error {
 	_, err := q.db.Exec(ctx, revokeSessionsExcept, arg.UserID, arg.ID)
 	return err
+}
+
+const rotateSessionToken = `-- name: RotateSessionToken :execrows
+UPDATE sessions
+SET previous_token_hash = token_hash,
+    token_hash = $2,
+    token_rotated_at = NOW()
+WHERE id = $1
+  AND token_hash = $3
+  AND revoked_at IS NULL
+  AND expires_at > NOW()
+`
+
+type RotateSessionTokenParams struct {
+	ID          pgtype.UUID
+	TokenHash   string
+	TokenHash_2 string
+}
+
+func (q *Queries) RotateSessionToken(ctx context.Context, arg RotateSessionTokenParams) (int64, error) {
+	result, err := q.db.Exec(ctx, rotateSessionToken, arg.ID, arg.TokenHash, arg.TokenHash_2)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const rotateSessionTokenFromPrevious = `-- name: RotateSessionTokenFromPrevious :execrows
+UPDATE sessions
+SET previous_token_hash = token_hash,
+    token_hash = $2,
+    token_rotated_at = NOW()
+WHERE id = $1
+  AND previous_token_hash = $3
+  AND token_rotated_at > $4
+  AND revoked_at IS NULL
+  AND expires_at > NOW()
+`
+
+type RotateSessionTokenFromPreviousParams struct {
+	ID                pgtype.UUID
+	TokenHash         string
+	PreviousTokenHash pgtype.Text
+	TokenRotatedAt    pgtype.Timestamp
+}
+
+func (q *Queries) RotateSessionTokenFromPrevious(ctx context.Context, arg RotateSessionTokenFromPreviousParams) (int64, error) {
+	result, err := q.db.Exec(ctx, rotateSessionTokenFromPrevious,
+		arg.ID,
+		arg.TokenHash,
+		arg.PreviousTokenHash,
+		arg.TokenRotatedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

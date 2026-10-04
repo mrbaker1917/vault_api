@@ -186,6 +186,9 @@ paths:
       tags: [Auth]
       summary: Refresh access token
       operationId: refreshToken
+      description: |
+        Issues a new access token and rotates the refresh token. Presenting a previously
+        rotated refresh token revokes the session (reuse detection).
       requestBody:
         required: true
         content:
@@ -194,11 +197,11 @@ paths:
               $ref: "#/components/schemas/RefreshRequest"
       responses:
         "200":
-          description: New access token issued
+          description: New access and refresh tokens issued
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AccessTokenResponse"
+                $ref: "#/components/schemas/TokenPairResponse"
         "400":
           $ref: "#/components/responses/BadRequestText"
         "401":

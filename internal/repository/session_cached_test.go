@@ -29,6 +29,18 @@ func (s *countingSessionRepo) GetByTokenHash(_ context.Context, _ string) (domai
 	return domain.Session{}, ErrNotFound
 }
 
+func (s *countingSessionRepo) GetByPreviousTokenHash(_ context.Context, _ string) (domain.Session, error) {
+	return domain.Session{}, ErrNotFound
+}
+
+func (s *countingSessionRepo) RotateToken(_ context.Context, _ uuid.UUID, _, _ string) (bool, error) {
+	return false, nil
+}
+
+func (s *countingSessionRepo) RotateFromPreviousToken(_ context.Context, _ uuid.UUID, _, _ string, _ time.Duration) (bool, error) {
+	return false, nil
+}
+
 func (s *countingSessionRepo) GetByID(_ context.Context, id uuid.UUID) (domain.Session, error) {
 	s.getByIDCalls++
 	session, ok := s.sessions[id]

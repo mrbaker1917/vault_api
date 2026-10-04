@@ -15,10 +15,14 @@ import (
 )
 
 var ErrInvalidCredentials = errors.New("invalid credentials")
+var ErrRefreshTokenReuse = errors.New("refresh token reuse detected")
 var ErrEmailAlreadyExists = errors.New("email already exists")
 var ErrPasswordUnchanged = errors.New("new password must differ from current password")
 
-const accessTokenTTL = 15 * time.Minute
+const (
+	accessTokenTTL              = 15 * time.Minute
+	refreshTokenRotationGrace   = 30 * time.Second
+)
 
 type AuthService struct {
 	users           repository.UserRepository
@@ -212,32 +216,95 @@ func (s *AuthService) validateUserTOTP(stored *string, code string) bool {
 	return crypto.ValidateTOTPCode(plain, code)
 }
 
-func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (accessToken string, err error) {
+func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (accessToken, newRefreshToken string, err error) {
 	if strings.TrimSpace(refreshToken) == "" {
-		return "", ErrInvalidCredentials
+		return "", "", ErrInvalidCredentials
 	}
 	tokenHash, err := crypto.HashToken(refreshToken)
 	if err != nil {
-		return "", fmt.Errorf("hash token: %w", err)
-	}
-	session, err := s.sessions.GetByTokenHash(ctx, tokenHash)
-	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return "", ErrInvalidCredentials
-		}
-		return "", fmt.Errorf("get session by token hash: %w", err)
+		return "", "", fmt.Errorf("hash token: %w", err)
 	}
 
-	accessToken, err = crypto.MakeAccessToken(
-		session.UserID,
-		session.ID,
-		s.jwtSecret,
-		accessTokenTTL,
-	)
+	newRefreshToken, newTokenHash, err := s.newRefreshTokenPair()
 	if err != nil {
-		return "", fmt.Errorf("make access token: %w", err)
+		return "", "", err
 	}
-	return accessToken, nil
+
+	session, err := s.sessions.GetByTokenHash(ctx, tokenHash)
+	if err == nil {
+		accessToken, newRefreshToken, err = s.rotateAndIssue(ctx, session, tokenHash, newRefreshToken, newTokenHash)
+		return accessToken, newRefreshToken, err
+	}
+	if !errors.Is(err, repository.ErrNotFound) {
+		return "", "", fmt.Errorf("get session by token hash: %w", err)
+	}
+
+	session, err = s.sessions.GetByPreviousTokenHash(ctx, tokenHash)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return "", "", ErrInvalidCredentials
+		}
+		return "", "", fmt.Errorf("get session by previous token hash: %w", err)
+	}
+
+	rotated, err := s.sessions.RotateFromPreviousToken(ctx, session.ID, tokenHash, newTokenHash, refreshTokenRotationGrace)
+	if err != nil {
+		return "", "", fmt.Errorf("rotate session token from previous: %w", err)
+	}
+	if rotated {
+		accessToken, err = crypto.MakeAccessToken(session.UserID, session.ID, s.jwtSecret, accessTokenTTL)
+		if err != nil {
+			return "", "", fmt.Errorf("make access token: %w", err)
+		}
+		return accessToken, newRefreshToken, nil
+	}
+
+	if revokeErr := s.sessions.Revoke(ctx, session.ID); revokeErr != nil {
+		slog.Warn("failed to revoke session after refresh token reuse", "session_id", session.ID, "error", revokeErr)
+	}
+	if s.audit != nil {
+		sessionID := session.ID
+		s.audit.Log(ctx, session.UserID, AuditContext{}, AuditAuthRefreshReuse, "session", &sessionID, nil)
+	}
+	return "", "", ErrRefreshTokenReuse
+}
+
+func (s *AuthService) newRefreshTokenPair() (refreshToken, tokenHash string, err error) {
+	refreshToken, err = crypto.GenerateRefreshToken()
+	if err != nil {
+		return "", "", fmt.Errorf("generate refresh token: %w", err)
+	}
+	tokenHash, err = crypto.HashToken(refreshToken)
+	if err != nil {
+		return "", "", fmt.Errorf("hash token: %w", err)
+	}
+	return refreshToken, tokenHash, nil
+}
+
+func (s *AuthService) rotateAndIssue(
+	ctx context.Context,
+	session domain.Session,
+	currentTokenHash, newRefreshToken, newTokenHash string,
+) (accessToken, rotatedRefreshToken string, err error) {
+	rotated, err := s.sessions.RotateToken(ctx, session.ID, currentTokenHash, newTokenHash)
+	if err != nil {
+		return "", "", fmt.Errorf("rotate session token: %w", err)
+	}
+	if !rotated {
+		graceRotated, graceErr := s.sessions.RotateFromPreviousToken(ctx, session.ID, currentTokenHash, newTokenHash, refreshTokenRotationGrace)
+		if graceErr != nil {
+			return "", "", fmt.Errorf("rotate session token from previous: %w", graceErr)
+		}
+		if !graceRotated {
+			return "", "", ErrInvalidCredentials
+		}
+	}
+
+	accessToken, err = crypto.MakeAccessToken(session.UserID, session.ID, s.jwtSecret, accessTokenTTL)
+	if err != nil {
+		return "", "", fmt.Errorf("make access token: %w", err)
+	}
+	return accessToken, newRefreshToken, nil
 }
 
 func (s *AuthService) Logout(ctx context.Context, sessionID, userID uuid.UUID, audit AuditContext) error {

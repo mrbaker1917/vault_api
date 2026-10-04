@@ -155,9 +155,9 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, err := h.authService.Refresh(r.Context(), req.RefreshToken)
+	accessToken, refreshToken, err := h.authService.Refresh(r.Context(), req.RefreshToken)
 	if err != nil {
-		if errors.Is(err, service.ErrInvalidCredentials) {
+		if errors.Is(err, service.ErrInvalidCredentials) || errors.Is(err, service.ErrRefreshTokenReuse) {
 			http.Error(w, "invalid credentials", http.StatusUnauthorized)
 			return
 		}
@@ -166,7 +166,8 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{
-		"access_token": accessToken,
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
 	})
 }
 

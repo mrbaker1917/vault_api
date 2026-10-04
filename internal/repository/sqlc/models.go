@@ -31,15 +31,17 @@ type RecoveryCode struct {
 }
 
 type Session struct {
-	ID         pgtype.UUID
-	UserID     pgtype.UUID
-	TokenHash  string
-	DeviceName pgtype.Text
-	IpAddress  *netip.Addr
-	UserAgent  pgtype.Text
-	CreatedAt  pgtype.Timestamp
-	ExpiresAt  pgtype.Timestamp
-	RevokedAt  pgtype.Timestamp
+	ID                pgtype.UUID
+	UserID            pgtype.UUID
+	TokenHash         string
+	DeviceName        pgtype.Text
+	IpAddress         *netip.Addr
+	UserAgent         pgtype.Text
+	CreatedAt         pgtype.Timestamp
+	ExpiresAt         pgtype.Timestamp
+	RevokedAt         pgtype.Timestamp
+	PreviousTokenHash pgtype.Text
+	TokenRotatedAt    pgtype.Timestamp
 }
 
 type SharedVaultItem struct {
