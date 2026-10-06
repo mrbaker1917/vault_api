@@ -1,7 +1,19 @@
-# Production reverse proxy with TLS.
-# Replace localhost with your domain and use ACME (remove "tls internal") for real certs.
+# SITE_ADDRESS — set in .env.prod (default: localhost).
+# For a real domain, set SITE_ADDRESS=vault.example.com and remove "tls internal @localhost"
+# (Caddy will obtain a Let's Encrypt certificate automatically on ports 80/443).
 
-localhost {
-	tls internal
-	reverse_proxy app:8080
+{$SITE_ADDRESS} {
+	@localhost host localhost 127.0.0.1
+	tls internal @localhost
+
+	@backend path /api/* /health /ready /metrics
+	handle @backend {
+		reverse_proxy app:8080
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
 }

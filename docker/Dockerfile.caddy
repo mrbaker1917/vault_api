@@ -1,0 +1,12 @@
+FROM node:22-alpine AS web-builder
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/ ./
+# Empty VITE_API_URL → same-origin requests through Caddy (/api/* → app)
+ARG VITE_API_URL=
+ENV VITE_API_URL=$VITE_API_URL
+RUN npm run build
+
+FROM caddy:2-alpine
+COPY --from=web-builder /web/dist /srv

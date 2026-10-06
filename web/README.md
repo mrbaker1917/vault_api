@@ -70,6 +70,10 @@ Idle timeout defaults: lock vault after **15 minutes**, sign out after **30 minu
 
 ### Production build
 
+**Recommended:** use production Docker Compose from the repo root — Caddy builds the web app and serves it same-origin with the API (no separate static host needed). See the root [README](../README.md#production-docker-compose).
+
+**Manual / split-host deploy:**
+
 ```bash
 npm run build
 ```
@@ -81,3 +85,5 @@ VITE_API_URL=https://api.example.com npm run build
 ```
 
 Ensure the API allows your frontend origin via `CORS_ALLOWED_ORIGINS`.
+
+For same-origin deploy (UI and API on one domain), leave `VITE_API_URL` empty at build time — the app uses relative `/api/v1/...` paths.

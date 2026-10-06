@@ -60,7 +60,9 @@ cp .env.prod.example .env.prod
 docker compose --env-file .env.prod -f docker-compose.prod.yml up --build
 ```
 
-API is served at **https://localhost** via Caddy (internal TLS). Postgres and Redis are not exposed on the host.
+The full app (React UI + API) is served at **https://localhost** via Caddy (internal TLS). Caddy serves the built frontend and proxies `/api/*` to the Go API. Postgres and Redis are not exposed on the host.
+
+For a real domain, set `SITE_ADDRESS=vault.example.com` in `.env.prod` and remove the `tls internal @localhost` block from `docker/Caddyfile` so Caddy can obtain a Let's Encrypt certificate.
 
 ### Web frontend
 
@@ -87,7 +89,7 @@ The React app runs at [http://localhost:5173](http://localhost:5173). See [web/R
 | **Sharing** | Share items by email with client-wrapped keys (`read` / `write`) |
 | **Audit** | Append-only log of sensitive operations |
 | **Security** | Argon2id passwords, Redis-backed distributed auth rate limiting + session cache, encrypted blob validation, password strength + HIBP breach checks, shared write enforcement |
-| **Ops** | JSON logging, `/health`, `/ready`, Prometheus `/metrics`, auto-migrations, scheduled soft-delete purge, prod Docker Compose + Caddy TLS, GitHub Actions CI |
+| **Ops** | JSON logging, `/health`, `/ready`, Prometheus `/metrics`, auto-migrations, scheduled soft-delete purge, prod Docker Compose (API + web UI + Caddy TLS), GitHub Actions CI |
 | **Web UI** | React app in `web/` — auth, encrypted vault CRUD, MFA, recovery, sessions, settings, audit log, trash restore |
 
 ### Planned / not yet implemented

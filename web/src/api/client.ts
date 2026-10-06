@@ -9,7 +9,12 @@ import {
 import { markUserActivity } from '../auth/activity'
 import type { MFARequiredBody } from './types'
 
+/** Empty string = same-origin (production via Caddy). Dev default: localhost API. */
 export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8081'
+
+export function apiOriginLabel(): string {
+  return API_URL || (typeof window !== 'undefined' ? window.location.origin : 'the API')
+}
 
 export class ApiError extends Error {
   status: number
@@ -27,7 +32,7 @@ export function formatRequestError(err: unknown, fallback: string): string {
     return err.message
   }
   if (err instanceof TypeError) {
-    return `Could not reach the API at ${API_URL}. Check that the server is running.`
+    return `Could not reach the API at ${apiOriginLabel()}. Check that the server is running.`
   }
   if (err instanceof Error && err.message) {
     return err.message
