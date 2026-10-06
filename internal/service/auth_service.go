@@ -20,8 +20,8 @@ var ErrEmailAlreadyExists = errors.New("email already exists")
 var ErrPasswordUnchanged = errors.New("new password must differ from current password")
 
 const (
-	accessTokenTTL              = 15 * time.Minute
-	refreshTokenRotationGrace   = 30 * time.Second
+	accessTokenTTL            = 15 * time.Minute
+	refreshTokenRotationGrace = 30 * time.Second
 )
 
 type AuthService struct {
@@ -402,4 +402,55 @@ func (s *AuthService) ChangePassword(
 	}
 
 	return nil
+}
+
+// ResetAccountPassword sets a new account password for email, signs out every session,
+// and optionally turns off MFA. The vault master password is not changed.
+func (s *AuthService) ResetAccountPassword(ctx context.Context, email, newPassword string, disableMFA bool) (domain.User, error) {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return domain.User{}, ErrNotFound
+	}
+
+	user, err := s.users.GetByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return domain.User{}, ErrNotFound
+		}
+		return domain.User{}, fmt.Errorf("get user by email: %w", err)
+	}
+
+	if err := s.validateNewPassword(ctx, newPassword); err != nil {
+		return domain.User{}, err
+	}
+
+	passwordHash, err := crypto.HashPassword(newPassword)
+	if err != nil {
+		return domain.User{}, fmt.Errorf("hash password: %w", err)
+	}
+	if err := s.users.UpdatePassword(ctx, user.ID, passwordHash); err != nil {
+		return domain.User{}, fmt.Errorf("update password: %w", err)
+	}
+
+	if disableMFA {
+		if err := s.users.DisableMFA(ctx, user.ID); err != nil {
+			return domain.User{}, fmt.Errorf("disable mfa: %w", err)
+		}
+		user.MfaEnabled = false
+		user.MfaSecret = nil
+	}
+
+	if err := s.sessions.RevokeAllExcept(ctx, user.ID, uuid.Nil); err != nil {
+		return domain.User{}, fmt.Errorf("revoke sessions: %w", err)
+	}
+
+	if s.audit != nil {
+		userID := user.ID
+		s.audit.Log(ctx, user.ID, AuditContext{}, AuditAuthPasswordChange, "user", &userID, map[string]any{
+			"operator_reset": true,
+			"mfa_disabled":   disableMFA,
+		})
+	}
+
+	return user, nil
 }

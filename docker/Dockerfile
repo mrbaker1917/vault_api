@@ -1,13 +1,14 @@
 FROM golang:1.26-alpine AS builder
 WORKDIR /app
 COPY . .
-RUN go build -o server ./cmd/server && go build -o purge ./cmd/purge
+RUN go build -o server ./cmd/server && go build -o purge ./cmd/purge && go build -o reset-password ./cmd/reset-password
 
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates wget dcron
 WORKDIR /app
 COPY --from=builder /app/server ./server
 COPY --from=builder /app/purge ./purge
+COPY --from=builder /app/reset-password ./reset-password
 COPY --from=builder /app/migrations ./migrations
 COPY docker/purge-crontab /etc/crontabs/root
 RUN chmod 0644 /etc/crontabs/root

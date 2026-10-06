@@ -64,6 +64,14 @@ The full app (React UI + API) is served at **https://localhost** via Caddy. Cadd
 
 For a real domain, set `SITE_ADDRESS=vault.example.com` in `.env.prod`. Caddy obtains a Let's Encrypt certificate and sends HSTS (`max-age=31536000; includeSubDomains`). With `SITE_ADDRESS=localhost`, Caddy uses its local certificate and does not send HSTS.
 
+Reset an account password from the running API container. This does not change the vault master password.
+
+```bash
+docker exec -it vault_api_app ./reset-password --email person@example.com
+```
+
+The command asks for the new password twice, stores the hash, and signs out existing sessions. Add `--disable-mfa` when the authenticator device is gone and there is no recovery code. The new password must be at least 12 characters and include uppercase, lowercase, and a number.
+
 ### Web frontend
 
 ```bash

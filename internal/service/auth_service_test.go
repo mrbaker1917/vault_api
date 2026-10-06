@@ -405,3 +405,87 @@ func TestAuthServiceSignupAllowsPasswordWhenBreachCheckFails(t *testing.T) {
 		t.Fatalf("expected user email, got %q", user.Email)
 	}
 }
+
+func TestAuthServiceResetAccountPassword(t *testing.T) {
+	users := newStubAuthUserRepo()
+	sessions := newStubAuthSessionRepo()
+	svc := NewAuthService(users, sessions, "test-secret", nil, nil)
+
+	userID := uuid.New()
+	hash, err := crypto.HashPassword("Old-Password12")
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	secret := "totp-secret"
+	users.users[userID] = domain.User{
+		ID:           userID,
+		Email:        "person@example.com",
+		PasswordHash: hash,
+		MfaEnabled:   true,
+		MfaSecret:    &secret,
+	}
+	sessionID := uuid.New()
+	sessions.sessions[sessionID] = domain.Session{ID: sessionID, UserID: userID}
+
+	updated, err := svc.ResetAccountPassword(context.Background(), " person@example.com ", "New-Password12", false)
+	if err != nil {
+		t.Fatalf("reset password: %v", err)
+	}
+	if !updated.MfaEnabled {
+		t.Fatal("expected MFA to stay enabled")
+	}
+	ok, err := crypto.CheckPasswordHash("New-Password12", users.users[userID].PasswordHash)
+	if err != nil || !ok {
+		t.Fatalf("new password hash mismatch: ok=%v err=%v", ok, err)
+	}
+	if _, stillThere := sessions.sessions[sessionID]; stillThere {
+		t.Fatal("expected existing session to be revoked")
+	}
+}
+
+func TestAuthServiceResetAccountPasswordDisableMFA(t *testing.T) {
+	users := newStubAuthUserRepo()
+	svc := NewAuthService(users, newStubAuthSessionRepo(), "test-secret", nil, nil)
+
+	userID := uuid.New()
+	hash, err := crypto.HashPassword("Old-Password12")
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	secret := "totp-secret"
+	users.users[userID] = domain.User{
+		ID:           userID,
+		Email:        "person@example.com",
+		PasswordHash: hash,
+		MfaEnabled:   true,
+		MfaSecret:    &secret,
+	}
+
+	updated, err := svc.ResetAccountPassword(context.Background(), "person@example.com", "New-Password12", true)
+	if err != nil {
+		t.Fatalf("reset password: %v", err)
+	}
+	if updated.MfaEnabled || updated.MfaSecret != nil {
+		t.Fatal("expected MFA to be turned off")
+	}
+	if users.users[userID].MfaEnabled || users.users[userID].MfaSecret != nil {
+		t.Fatal("expected stored MFA to be cleared")
+	}
+}
+
+func TestAuthServiceResetAccountPasswordRejectsUnknownEmailAndWeakPassword(t *testing.T) {
+	users := newStubAuthUserRepo()
+	svc := NewAuthService(users, newStubAuthSessionRepo(), "test-secret", nil, nil)
+
+	_, err := svc.ResetAccountPassword(context.Background(), "missing@example.com", "New-Password12", false)
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+
+	userID := uuid.New()
+	users.users[userID] = domain.User{ID: userID, Email: "person@example.com"}
+	_, err = svc.ResetAccountPassword(context.Background(), "person@example.com", "short", false)
+	if !errors.Is(err, crypto.ErrWeakPassword) {
+		t.Fatalf("expected weak password error, got %v", err)
+	}
+}

@@ -43,3 +43,4 @@ jobs:
         run: |
           go build -o bin/server ./cmd/server
           go build -o bin/purge ./cmd/purge
+          go build -o bin/reset-password ./cmd/reset-password

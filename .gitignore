@@ -2,3 +2,4 @@ plan.md
 docker.txt
 bin/
 server
+docker/.env.prod
