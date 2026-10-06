@@ -1,12 +1,14 @@
 # SITE_ADDRESS — set in .env.prod (default: localhost).
-# For a real domain, set SITE_ADDRESS=vault.example.com and remove "tls internal @localhost"
-# (Caddy will obtain a Let's Encrypt certificate automatically on ports 80/443).
+# localhost uses Caddy's automatic local certificate.
+# A public hostname gets a Let's Encrypt certificate on ports 80 and 443.
+# HSTS is sent only for public hostnames.
 
 {$SITE_ADDRESS} {
-	@localhost host localhost 127.0.0.1
-	tls internal @localhost
+	@publicHost not host localhost 127.0.0.1
+	header @publicHost Strict-Transport-Security "max-age=31536000; includeSubDomains"
 
-	@backend path /api/* /health /ready /metrics
+	# /metrics stays on the app container (http://app:8080/metrics) inside the Docker network.
+	@backend path /api/* /health /ready
 	handle @backend {
 		reverse_proxy app:8080
 	}

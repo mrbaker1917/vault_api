@@ -40,7 +40,7 @@ Health checks:
 
 - `GET /health` — liveness
 - `GET /ready` — readiness (PostgreSQL ping)
-- `GET /metrics` — Prometheus metrics
+- `GET /metrics` — Prometheus metrics (reachable at `http://app:8080/metrics` on the Docker network; production Caddy does not proxy it)
 
 ### Docker Compose
 
@@ -60,9 +60,9 @@ cp .env.prod.example .env.prod
 docker compose --env-file .env.prod -f docker-compose.prod.yml up --build
 ```
 
-The full app (React UI + API) is served at **https://localhost** via Caddy (internal TLS). Caddy serves the built frontend and proxies `/api/*` to the Go API. Postgres and Redis are not exposed on the host.
+The full app (React UI + API) is served at **https://localhost** via Caddy. Caddy serves the built frontend and proxies `/api/*`, `/health`, and `/ready` to the Go API. Prometheus stays on the Docker network at `http://app:8080/metrics`. Postgres and Redis are not exposed on the host.
 
-For a real domain, set `SITE_ADDRESS=vault.example.com` in `.env.prod` and remove the `tls internal @localhost` block from `docker/Caddyfile` so Caddy can obtain a Let's Encrypt certificate.
+For a real domain, set `SITE_ADDRESS=vault.example.com` in `.env.prod`. Caddy obtains a Let's Encrypt certificate and sends HSTS (`max-age=31536000; includeSubDomains`). With `SITE_ADDRESS=localhost`, Caddy uses its local certificate and does not send HSTS.
 
 ### Web frontend
 
