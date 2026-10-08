@@ -40,78 +40,94 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-xl border border-slate-800 bg-slate-900 p-8 shadow-xl">
-        <h1 className="text-2xl font-semibold text-white">Sign in</h1>
-        <p className="mt-2 text-sm text-slate-400">
-          Access your zero-knowledge vault account.
-        </p>
+    <div className="flex min-h-screen flex-col">
+      <header className="border-b border-emerald-900/50 bg-gradient-to-b from-slate-900 to-slate-950">
+        <div className="mx-auto flex max-w-3xl flex-col items-center px-4 py-8 text-center">
+          <img src="/favicon.svg" alt="" width={48} height={48} className="h-12 w-12" />
+          <div className="mt-3 inline-flex max-w-full flex-col items-center">
+            <p className="text-8xl font-black leading-none tracking-[0.14em] text-white [margin-inline-end:-0.14em]">
+              Vault
+            </p>
+            <p className="mt-3 whitespace-nowrap text-sm text-slate-400">
+              Zero-knowledge password vault
+            </p>
+          </div>
+        </div>
+      </header>
 
-        <form onSubmit={(e) => void handleSubmit(e)} className="mt-8 space-y-4">
-          <label className="block text-sm">
-            <span className="text-slate-300">Email</span>
-            <input
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-emerald-500"
-            />
-          </label>
+      <div className="flex flex-1 items-center justify-center px-4 py-10">
+        <div className="w-full max-w-md rounded-xl border border-slate-800 bg-slate-900 p-8 shadow-xl">
+          <h1 className="text-2xl font-semibold text-white">Sign in</h1>
+          <p className="mt-2 text-sm text-slate-400">
+            Access your zero-knowledge vault account.
+          </p>
 
-          <label className="block text-sm">
-            <span className="text-slate-300">Password</span>
-            <input
-              type="password"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-emerald-500"
-            />
-          </label>
-
-          {mfaRequired && (
+          <form onSubmit={(e) => void handleSubmit(e)} className="mt-8 space-y-4">
             <label className="block text-sm">
-              <span className="text-slate-300">Authenticator code</span>
+              <span className="text-slate-300">Email</span>
               <input
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
+                type="email"
                 required
-                value={totpCode}
-                onChange={(e) => setTotpCode(e.target.value)}
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-emerald-500"
               />
             </label>
-          )}
 
-          {error && (
-            <p className="rounded-md border border-red-900/50 bg-red-950/40 px-3 py-2 text-sm text-red-300">
-              {error}
-            </p>
-          )}
+            <label className="block text-sm">
+              <span className="text-slate-300">Password</span>
+              <input
+                type="password"
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-emerald-500"
+              />
+            </label>
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-md bg-emerald-500 px-4 py-2 font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
-          >
-            {submitting ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
+            {mfaRequired && (
+              <label className="block text-sm">
+                <span className="text-slate-300">Authenticator code</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  required
+                  value={totpCode}
+                  onChange={(e) => setTotpCode(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-emerald-500"
+                />
+              </label>
+            )}
 
-        <p className="mt-6 text-center text-sm text-slate-400">
-          No account?{' '}
-          <Link to="/signup" className="text-emerald-400 hover:underline">
-            Create one
-          </Link>
-          {' · '}
-          <Link to="/recovery" className="text-emerald-400 hover:underline">
-            Use a recovery code
-          </Link>
-        </p>
+            {error && (
+              <p className="rounded-md border border-red-900/50 bg-red-950/40 px-3 py-2 text-sm text-red-300">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full rounded-md bg-emerald-500 px-4 py-2 font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
+            >
+              {submitting ? 'Signing in…' : 'Sign in'}
+            </button>
+          </form>
+
+          <p className="mt-6 text-center text-sm text-slate-400">
+            No account?{' '}
+            <Link to="/signup" className="text-emerald-400 hover:underline">
+              Create one
+            </Link>
+            {' · '}
+            <Link to="/recovery" className="text-emerald-400 hover:underline">
+              Use a recovery code
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   )
